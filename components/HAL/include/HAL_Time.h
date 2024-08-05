@@ -5,8 +5,8 @@
 #ifndef RELAY_HAL_TIME_H
 #define RELAY_HAL_TIME_H
 
-#include <ctime>
-#include <cstdint>
+#include "../../../../../../../.espressif/tools/riscv32-esp-elf/esp-13.2.0_20240530/riscv32-esp-elf/riscv32-esp-elf/include/c++/13.2.0/ctime"
+#include "../../../../../../../.espressif/tools/riscv32-esp-elf/esp-13.2.0_20240530/riscv32-esp-elf/riscv32-esp-elf/include/c++/13.2.0/cstdint"
 
 namespace HAL {
     typedef struct time {

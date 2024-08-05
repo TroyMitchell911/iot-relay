@@ -8,7 +8,7 @@
 
 #include "freertos/FreeRTOS.h"
 
-#include "HAL/HAL_Time.h"
+#include "../components/HAL/include/HAL_Time.h"
 
 extern "C" {
 void app_main(void) {
