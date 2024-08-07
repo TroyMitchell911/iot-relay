@@ -16,17 +16,25 @@ namespace HAL {
     }*time_t;
 
     typedef struct date {
-        struct time time;
+        int	day;
+        int	mon;
+        int	year;
+    }*date_t;
+
+    typedef struct clock {
+        int	sec;
+        int	min;
+        int	hour;
         int	day;
         int	mon;
         int	year;
         int	wday;
-        char wday_str[16];
-    }*date_t;
+    }*clock_t;
+
     class Time {
 
     private:
-        struct date t;
+        struct clock g_clock;
         std::time_t std_time;
         struct tm* tm;
 
@@ -38,12 +46,15 @@ namespace HAL {
         void update();
 
     public:
-        void getTime(time_t time);
-        void getTimeStr(char *buf);
-        void getDate(date_t date);
-        void getDateStr(char *buf);
-        void updateTime();
-        static Time& getInstance();
+        void GetTime(HAL::time_t *time);
+        void GetTime(char **time);
+        void GetDate(HAL::date_t *date);
+        void GetDate(char **date);
+        void GetClock(HAL::clock_t *clock);
+        void GetClock(char **clock);
+        int GetWeek(char **week, bool full);
+        void SyncTime();
+        static Time& GetInstance();
     };
 };
 

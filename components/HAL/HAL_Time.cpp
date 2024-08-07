@@ -7,38 +7,92 @@
 #include <cstdio>
 #include <cstring>
 
+/* strlen("hh:mm:ss") + 1 = 9 */
+#define TIME_STR_LEN    9
+/* strlen("yyyy:MM:dd") + 1 = 11 */
+#define DATE_STR_LEN    11
+/* strlen("yyyy:MM:dd hh:mm:ss") + 1 = 19 */
+#define CLOCK_STR_LEN   19
+
 void HAL::Time::update() {
     std::time(&this->std_time);
     this->tm = localtime(&this->std_time);
 
-    memcpy(&this->t, this->tm, sizeof(struct HAL::date));
+    memcpy(&this->g_clock, this->tm, sizeof(struct HAL::clock));
 }
 
-void HAL::Time::getTime(HAL::time_t time) {
+void HAL::Time::GetTime(HAL::time_t *time) {
+    static struct HAL::time t;
+
     update();
-    memcpy(time, &this->t.time, sizeof(struct HAL::time));
+    memcpy(&t, &this->g_clock, sizeof(struct HAL::time));
+
+    *time = &t;
 }
 
-void HAL::Time::getTimeStr(char *buf) {
+void HAL::Time::GetTime(char **time) {
+    static char buf[TIME_STR_LEN];
+
     update();
-    strftime(buf, strlen("hh:mm:ss") + 1, "%T", (struct tm*)&this->t);
+    strftime(buf, TIME_STR_LEN, "%T", (struct tm*)&this->g_clock);
+
+    *time = buf;
 }
 
-void HAL::Time::getDate(HAL::date_t date) {
+void HAL::Time::GetDate(HAL::date_t *date) {
+    static struct HAL::date d;
+
     update();
-    memcpy(date, &this->t, sizeof(struct HAL::date));
+    memcpy(&d, &this->g_clock.day, sizeof(struct HAL::date));
+
+    *date = &d;
 }
 
-void HAL::Time::getDateStr(char *buf) {
+void HAL::Time::GetDate(char **date) {
+    static char buf[DATE_STR_LEN];
+
     update();
-    strftime(buf, strlen("yyyy:MM:dd") + 1, "%Y-%m-%d", (struct tm*)&this->t);
+    strftime(buf, DATE_STR_LEN, "%Y-%m-%d", (struct tm*)&this->g_clock);
+
+    *date = buf;
 }
 
-void HAL::Time::updateTime() {
+void HAL::Time::GetClock(HAL::clock_t *clock) {
+    static struct HAL::clock c;
+
+    update();
+    memcpy(&c, &this->g_clock, sizeof(struct HAL::clock));
+
+    *clock = &c;
 
 }
 
-HAL::Time &HAL::Time::getInstance() {
+void HAL::Time::GetClock(char **clock) {
+    static char buf[CLOCK_STR_LEN];
+
+    update();
+    strftime(buf, CLOCK_STR_LEN, "%Y-%m-%d %T", (struct tm*)&this->g_clock);
+
+    *clock = buf;
+}
+
+
+int HAL::Time::GetWeek(char **week, bool full) {
+    static char buf[16];
+
+    update();
+    strftime(buf, CLOCK_STR_LEN, full ? "%A" : "%a", (struct tm*)&this->g_clock);
+
+    *week = buf;
+
+    return this->g_clock.wday;
+}
+
+void HAL::Time::SyncTime() {
+
+}
+
+HAL::Time &HAL::Time::GetInstance() {
     static Time time;
     return time;
 }
@@ -50,5 +104,7 @@ HAL::Time::Time() {
 HAL::Time::~Time() {
 
 }
+
+
 
 

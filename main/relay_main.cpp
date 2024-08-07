@@ -12,26 +12,36 @@
 
 extern "C" {
 __attribute__((noreturn)) void app_main(void) {
-    char buffer[32];
-    HAL::Time &time = HAL::Time::getInstance();
+    HAL::Time &time = HAL::Time::GetInstance();
 
     printf("This a iot relay device\n");
 
     for (;;) {
-        struct HAL::date date{};
-        time.getDate(&date);
-        printf("getDate: %d-%d-%d %d:%d:%d\n", date.year, date.mon, date.day,
-               date.time.hour,
-               date.time.min,
-               date.time.sec);
-        time.getTime(&date.time);
-        printf("getTime: %d:%d:%d\n",  date.time.hour,
-               date.time.min,
-               date.time.sec);
-        time.getDateStr(buffer);
-        printf("getDateStr:%s\n", buffer);
-        time.getTimeStr(buffer);
-        printf("getTimeStr:%s\n", buffer);
+        char *buf_date, *buf_time, *buf_clock, *buf_week;
+        HAL::date_t date;
+        HAL::time_t t;
+        HAL::clock_t clock;
+
+        time.GetDate(&date);
+        time.GetTime(&t);
+        printf("GetDate: %d-%d-%d  %d:%d:%d\n", date->year, date->mon, date->day, t->hour, t->min, t->sec);
+
+        time.GetDate(&buf_date);
+        time.GetTime(&buf_time);
+        printf("GetDateStr: %s %s\n", buf_date, buf_time);
+
+        time.GetClock(&clock);
+        printf("GetClock: %d-%d-%d  %d:%d:%d %d\n", clock->year, clock->mon, clock->day, clock->hour, clock->min, clock->sec, clock->wday);
+
+        time.GetClock(&buf_clock);
+        printf("GetClockStr: %s\n", buf_clock);
+
+        time.GetWeek(&buf_week, false);
+        printf("GetWeek: %s ", buf_week);
+
+        time.GetWeek(&buf_week, true);
+        printf("%s\n", buf_week);
+
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
