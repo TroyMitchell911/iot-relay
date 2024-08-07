@@ -11,7 +11,7 @@
 #include "../components/HAL/include/HAL_Time.h"
 
 extern "C" {
-void app_main(void) {
+__attribute__((noreturn)) void app_main(void) {
     char buffer[32];
     HAL::Time &time = HAL::Time::getInstance();
 
