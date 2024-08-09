@@ -1,2 +1,5 @@
-idf_component_register(SRCS "relay_main.cpp"
-                    INCLUDE_DIRS "")
+file(GLOB_RECURSE SRC_FILES ${CMAKE_SOURCE_DIR}/components/*.cpp)
+
+idf_component_register(SRCS "relay_main.cpp" ${SRC_FILES}
+                    INCLUDE_DIRS ""
+                    INCLUDE_DIRS "../components/HAL/include")

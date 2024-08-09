@@ -1,2 +1,3 @@
 /build
 /cmake-build-debug-esp32c3
+/sdkconfig.old

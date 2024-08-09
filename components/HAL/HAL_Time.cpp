@@ -3,8 +3,7 @@
 //
 
 
-#include "include/HAL_Time.h"
-#include <cstdio>
+#include "HAL_Time.h"
 #include <cstring>
 
 /* strlen("hh:mm:ss") + 1 = 9 */
