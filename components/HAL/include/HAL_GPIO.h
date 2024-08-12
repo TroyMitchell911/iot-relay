@@ -8,52 +8,61 @@
 #include <cstdint>
 
 namespace HAL{
+#define GPIO_USE_GROUP          0
+#define GPIO_USE_SPEED          0
+
     class GPIO {
     public:
-        enum {
+        typedef enum {
+            GPIO_DISABLE,
             GPIO_INPUT,
             GPIO_OUTPUT,
-        };
+            GPIO_BOTH,
+        }gpio_direction_t;
 
-        enum {
-            GPIO_KAILOU,
-            GPIO_TUIWAN,
-        };
+        typedef enum{
+            GPIO_PP,
+            GPIO_OD,
+        }gpio_mode_t;
 
-        enum {
-            GPIO_PULLUP,
-            GPIO_PULLDOWN,
-            GPIO_NO_PULL,
-        };
-
-        typedef struct {
-            uint8_t group;
-            uint8_t pin;
-            uint8_t direction;
-            uint8_t pull;
-            uint8_t method;
-            uint32_t speed;
-        }gpio_cfg_t;
-
-    public:
         typedef enum {
             GPIO_STATE_HIGH,
             GPIO_STATE_LOW,
-        }GPIO_STATE_T;
+            GPIO_STATE_NONE,
+        }gpio_state_t;
+
+        typedef struct {
+#if GPIO_USE_GROUP
+            uint32_t group;
+#endif
+            uint32_t pin;
+            gpio_direction_t direction;
+            gpio_mode_t mode;
+            uint8_t pull_up : 1;
+            uint8_t pull_down : 1;
+#if GPIO_USE_SPEED
+            uint32_t speed;
+#endif
+        }gpio_cfg_t;
 
     private:
+        bool inited;
         gpio_cfg_t cfg{};
-        GPIO_STATE_T state;
+        gpio_state_t state;
 
     public:
-        GPIO();
+#if GPIO_USE_GROUP
+        GPIO(uint32_t group, uint32_t pin);
+#else
+        GPIO(uint32_t pin);
+#endif
         explicit GPIO(HAL::GPIO::gpio_cfg_t gpiocfg);
         ~GPIO();
 
     public:
         void Reconfigure(HAL::GPIO::gpio_cfg_t gpiocfg);
-        void Set(HAL::GPIO::GPIO_STATE_T gpio_state);
-        HAL::GPIO::GPIO_STATE_T Get();
+        void Set(HAL::GPIO::gpio_state_t gpio_state);
+        HAL::GPIO::gpio_state_t Get();
     };
 }
 
