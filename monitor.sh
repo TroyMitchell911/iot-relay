@@ -1,3 +1,3 @@
 #!/bin/zsh
 
-idf.py monitor
+idf.py monitor -p /dev/ttyACM0
