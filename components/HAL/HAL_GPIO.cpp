@@ -31,17 +31,8 @@ static void GPIO_InitMode(const HAL::GPIO::gpio_cfg_t *cfg, void* port_cfg) {
     if(cfg->direction != HAL::GPIO::GPIO_DISABLE && cfg->direction != HAL::GPIO::GPIO_INPUT) {
         if(cfg->mode == HAL::GPIO::GPIO_OD) {
             config->mode = gpio_mode_t (config->mode | GPIO_MODE_DEF_OD);
-        } else if(cfg->mode == HAL::GPIO::GPIO_PP) {
-
-        } else {
-            goto fail;
         }
     }
-
-
-    return;
-fail:
-    config->mode = GPIO_MODE_DISABLE;
 }
 
 static void GPIO_InitPull(const HAL::GPIO::gpio_cfg_t *cfg, void* port_cfg) {
@@ -118,7 +109,7 @@ void HAL::GPIO::Reconfigure(HAL::GPIO::gpio_cfg_t gpiocfg) {
 }
 
 void HAL::GPIO::Set(HAL::GPIO::gpio_state_t gpio_state) {
-    if(this->cfg.direction == HAL::GPIO::GPIO_OUTPUT)
+    if(this->cfg.direction == HAL::GPIO::GPIO_INPUT)
         return;
     GPIO_Set(&this->cfg, gpio_state);
     this->state = gpio_state;
