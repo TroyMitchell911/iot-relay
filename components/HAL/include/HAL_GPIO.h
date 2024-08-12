@@ -60,6 +60,7 @@ namespace HAL{
         ~GPIO();
 
     public:
+        HAL::GPIO::gpio_cfg_t GetConfig();
         void Reconfigure(HAL::GPIO::gpio_cfg_t gpiocfg);
         void Set(HAL::GPIO::gpio_state_t gpio_state);
         HAL::GPIO::gpio_state_t Get();

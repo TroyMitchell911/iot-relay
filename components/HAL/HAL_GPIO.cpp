@@ -103,24 +103,30 @@ HAL::GPIO::~GPIO() {
     GPIO_Init(&default_cfg);
 }
 
+HAL::GPIO::gpio_cfg_t HAL::GPIO::GetConfig() {
+    return this->cfg;
+}
+
 void HAL::GPIO::Reconfigure(HAL::GPIO::gpio_cfg_t gpiocfg) {
     memcpy(&this->cfg, &gpiocfg, sizeof(HAL::GPIO::gpio_cfg_t));
     GPIO_Init(&this->cfg);
 }
 
 void HAL::GPIO::Set(HAL::GPIO::gpio_state_t gpio_state) {
-    if(this->cfg.direction == HAL::GPIO::GPIO_INPUT)
+    if(this->cfg.direction == HAL::GPIO::GPIO_INPUT || this->cfg.direction == HAL::GPIO::GPIO_DISABLE)
         return;
     GPIO_Set(&this->cfg, gpio_state);
     this->state = gpio_state;
 }
 
 HAL::GPIO::gpio_state_t HAL::GPIO::Get() {
-    if(!inited)
+    if(!inited || this->cfg.direction == GPIO_DISABLE)
         return HAL::GPIO::GPIO_STATE_NONE;
     if(this->cfg.direction == HAL::GPIO::GPIO_OUTPUT)
         return this->state;
     else
         return GPIO_Get(&this->cfg);
 }
+
+
 
