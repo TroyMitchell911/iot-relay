@@ -18,7 +18,7 @@ namespace HAL {
         WiFi_DISCONNECTED,
         WiFi_GOT_IP,
     }wifi_event_t;
-    typedef void (*wifi_callback_t)(wifi_event_t event);
+    typedef void (*wifi_callback_t)(wifi_event_t event, void *data);
 
     private:
         uint8_t sta_ssid[32]{};
@@ -29,7 +29,8 @@ namespace HAL {
     public:
         static HAL::WiFi& GetInstance();
         void Init();
-        esp_err_t Sta(char *ssid, char *pwd, wifi_callback_t callback);
+        esp_err_t Sta(const char *ssid, const char *pwd, wifi_callback_t callback);
+        esp_err_t Sta(const char *ssid, const char *pwd, wifi_callback_t callback, uint8_t retry_num);
 
     public:
         WiFi() = default;

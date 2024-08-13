@@ -8,8 +8,19 @@
 #include <nvs_flash.h>
 #include <soc/gpio_num.h>
 #include <driver/gpio.h>
+#include <esp_log.h>
 #include "freertos/FreeRTOS.h"
 #include "HAL_WiFi.h"
+
+#define TAG "[main]"
+
+static void wifi_event(HAL::WiFi::wifi_event_t event_id, void *event_data) {
+    if(event_id == HAL::WiFi::WiFi_DISCONNECTED) {
+    } else if(event_id == HAL::WiFi::WiFi_GOT_IP) {
+        auto *data = (esp_ip4_addr_t*)event_data;
+        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(data));
+    }
+}
 
 extern "C" {
 __attribute__((noreturn)) void app_main(void) {
@@ -26,7 +37,8 @@ __attribute__((noreturn)) void app_main(void) {
     HAL::WiFi& wifi = HAL::WiFi::GetInstance();
 
     wifi.Init();
-    wifi.Sta("troyself-wifi", "troy888666", nullptr);
+//    wifi.Sta("troyself-wifi", "troy888666", wifi_event);
+    wifi.Sta("HBDT-23F", "hbishbis", wifi_event);
 
     for(;;){
         vTaskDelay(1000 / portTICK_PERIOD_MS);
