@@ -7,7 +7,7 @@
 
 #define TAG "[App::HomeAssistant]"
 
-static const char *type2str[] = {"switch"};
+static const char *type2str[] = {"light"};
 
 static const char *g_prefix = "homeassistant";
 
@@ -27,7 +27,8 @@ void App::HomeAssistant::Init(const char *where, entity_type_t type, const char 
 
     HAL::MQTT::msg_t msg{};
     msg.data = "";
-    mqtt->Publish(discovery_topic, msg);
+    msg.topic = discovery_topic;
+    mqtt->Publish(msg);
 
     if(discovery) {
         cJSON* root = cJSON_CreateObject();
@@ -40,13 +41,14 @@ void App::HomeAssistant::Init(const char *where, entity_type_t type, const char 
 
         msg.data = cJSON_Print(root);
         ESP_LOGI(TAG, "discovery_content: %s", msg.data);
-        mqtt->Publish(discovery_topic, msg);
+        mqtt->Publish(msg);
     }
 
-    msg.data = this->switch_status ? "ON" : "OFF";
+    msg.data = (char*)(this->light_status ? "ON" : "OFF");
     msg.retain = 1;
     msg.qos = 0;
-    mqtt->Publish(this->status_topic, msg);
+    msg.topic = this->status_topic;
+    mqtt->Publish(msg);
 }
 
 App::HomeAssistant::HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name) {
@@ -69,6 +71,25 @@ App::HomeAssistant::~HomeAssistant() {
 
 void App::HomeAssistant::Prefix(const char *prefix) {
     g_prefix = prefix;
+}
+
+void App::HomeAssistant::Process(char *topic, int topic_len, char *data, int data_len) {
+    printf("Process\n");
+    if(strncmp(topic, this->command_topic, topic_len) == 0) {
+        printf("command_topic\n");
+        if(strncmp(data, "ON", data_len) == 0) {
+            this->light_status = true;
+        } else if(strncmp(data, "OFF", data_len) == 0) {
+            this->light_status = false;
+        }
+    }
+    HAL::MQTT::msg_t msg{};
+
+    msg.data = (char*)(this->light_status ? "ON" : "OFF");
+    msg.retain = 1;
+    msg.qos = 0;
+    msg.topic = this->status_topic;
+    mqtt->Publish(msg);
 }
 
 

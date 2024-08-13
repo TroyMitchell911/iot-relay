@@ -35,11 +35,20 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         case MQTT_EVENT_PUBLISHED:
             ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
             break;
-        case MQTT_EVENT_DATA:
+        case MQTT_EVENT_DATA:{
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             ESP_LOGI(TAG, "TOPIC=%.*s", event->topic_len, event->topic);
             ESP_LOGI(TAG, "DATA=%.*s", event->data_len, event->data);
+            HAL::MQTT::msg_t msg{};
+            msg.data = event->data;
+            msg.len = event->data_len;
+            msg.topic = event->topic;
+            msg.topic_len = event->topic_len;
+            if((callback_event_mask & HAL::MQTT::EVENT_DATA) && callback) {
+                callback(HAL::MQTT::EVENT_DATA, &msg);
+            }
             break;
+        }
         case MQTT_EVENT_ERROR:
             ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
@@ -104,17 +113,17 @@ void HAL::MQTT::Unsubscirbe(const char *topic) {
     esp_mqtt_client_unsubscribe(this->mqtt_client, topic);
 }
 
-int HAL::MQTT::Publish(const char *topic, HAL::MQTT::msg_t &msg) {
-    return esp_mqtt_client_publish(this->mqtt_client,
-                                   topic,
-                                   msg.data,
-                                   int(msg.len == 0 ? strlen(msg.data) : msg.len),
-                                   msg.qos,
-                                   msg.retain);
-}
-
 void HAL::MQTT::BindingEvent(uint32_t id) {
     if(id < HAL::MQTT::EVENT_MAX) {
         this->callback.event_mask |= id;
     }
+}
+
+int HAL::MQTT::Publish(HAL::MQTT::msg_t &msg) {
+    return esp_mqtt_client_publish(this->mqtt_client,
+                                   msg.topic,
+                                   msg.data,
+                                   int(msg.len == 0 ? strlen(msg.data) : msg.len),
+                                   msg.qos,
+                                   msg.retain);
 }

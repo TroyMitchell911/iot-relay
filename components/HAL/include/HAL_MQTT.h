@@ -21,11 +21,14 @@ namespace HAL {
         }event_t;
 
         typedef struct {
-            const char *data;
+            char *topic;
+            char *data;
             int len;
             /* ↓ just sending use ↓ */
             int qos;
             int retain;
+            /* ↓ just reading use ↓ */
+            int topic_len;
         }msg_t;
 
         typedef void (*callback_t)(event_t event, void *data);
@@ -51,7 +54,7 @@ namespace HAL {
         void BindingEvent(uint32_t id);
         void Subscribe(const char *topic, uint8_t qos);
         void Unsubscirbe(const char *topic);
-        int Publish(const char *topic, msg_t &msg);
+        int Publish(msg_t &msg);
         ~MQTT();
     };
 }
