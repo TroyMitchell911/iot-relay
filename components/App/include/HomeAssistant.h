@@ -20,11 +20,13 @@ namespace App {
         HAL::MQTT *mqtt = nullptr;
         char command_topic[64] = {0};
         char status_topic[64] = {0};
+        bool switch_status = false;
     public:
         static void Prefix(const char *prefix);
     private:
         void Init(const char *where, entity_type_t type, const char *name, bool discovery);
     public:
+        void Switch();
         HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name);
         HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name, bool discovery);
         ~HomeAssistant();

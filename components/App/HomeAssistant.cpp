@@ -21,23 +21,32 @@ void App::HomeAssistant::Init(const char *where, entity_type_t type, const char 
     ESP_LOGI(TAG, "status_topic: %s", this->status_topic);
     mqtt->Subscribe(this->command_topic, 0);
 
-    if(discovery) {
-        sprintf(buffer, "%s-%s", where, name);
+    sprintf(buffer, "%s-%s", where, name);
+    sprintf(discovery_topic, "%s/%s/%s/config", g_prefix, type2str[type], buffer);
+    ESP_LOGI(TAG, "discovery_topic: %s", discovery_topic);
 
+    HAL::MQTT::msg_t msg{};
+    msg.data = "";
+    mqtt->Publish(discovery_topic, msg);
+
+    if(discovery) {
         cJSON* root = cJSON_CreateObject();
         cJSON_AddStringToObject(root, "name", buffer);
         cJSON_AddStringToObject(root, "device_class", type2str[type]);
-        cJSON_AddStringToObject(root, "command_topic", this->status_topic);
+        cJSON_AddStringToObject(root, "command_topic", this->command_topic);
+        cJSON_AddStringToObject(root, "state_topic", this->status_topic);
+        cJSON_AddBoolToObject(root, "optimistic", false);
         cJSON_AddStringToObject(root, "unique_id", buffer);
 
-        sprintf(discovery_topic, "%s/%s/%s/config", g_prefix, type2str[type], buffer);
-        ESP_LOGI(TAG, "discovery_topic: %s", discovery_topic);
-
-        HAL::MQTT::msg_t msg{};
         msg.data = cJSON_Print(root);
         ESP_LOGI(TAG, "discovery_content: %s", msg.data);
         mqtt->Publish(discovery_topic, msg);
     }
+
+    msg.data = this->switch_status ? "ON" : "OFF";
+    msg.retain = 1;
+    msg.qos = 0;
+    mqtt->Publish(this->status_topic, msg);
 }
 
 App::HomeAssistant::HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name) {
