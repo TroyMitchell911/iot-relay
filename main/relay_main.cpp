@@ -4,13 +4,16 @@
  * SPDX-License-Identifier: CC0-1.0
  */
 
-#include <esp_event.h>
 #include <nvs_flash.h>
 #include <soc/gpio_num.h>
 #include <driver/gpio.h>
 #include <esp_log.h>
+#include <esp_log.h>
+#include <mqtt_client.h>
+#include <esp_ota_ops.h>
 #include "freertos/FreeRTOS.h"
 #include "HAL_WiFi.h"
+#include "HAL_MQTT.h"
 
 #define TAG "[main]"
 
@@ -19,6 +22,7 @@ static void wifi_event(HAL::WiFi::wifi_event_t event_id, void *event_data) {
     } else if(event_id == HAL::WiFi::WiFi_GOT_IP) {
         auto *data = (esp_ip4_addr_t*)event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(data));
+        auto mqtt = new HAL::MQTT("uri", "root", "123", ca);
     }
 }
 
@@ -39,6 +43,7 @@ __attribute__((noreturn)) void app_main(void) {
     wifi.Init();
 //    wifi.Sta("troyself-wifi", "troy888666", wifi_event);
     wifi.Sta("HBDT-23F", "hbishbis", wifi_event);
+//    wifi.Sta("troy-phone", "jianglin998", wifi_event);
 
     for(;;){
         vTaskDelay(1000 / portTICK_PERIOD_MS);
