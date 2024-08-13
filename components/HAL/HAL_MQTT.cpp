@@ -11,10 +11,17 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32, base, event_id);
     auto event = (esp_mqtt_event_handle_t)event_data;
     esp_mqtt_client_handle_t client = event->client;
-    int msg_id;
+    auto callback = *((HAL::MQTT::callback_t*)handler_args);
+    uint32_t callback_event_mask = *(uint32_t*)((uint32_t)handler_args + sizeof(HAL::MQTT::callback_t));
+
+    printf("callback: %p, event_mask: %ld\n", callback, callback_event_mask);
+
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+            if((callback_event_mask & HAL::MQTT::EVENT_CONNECTED) && callback) {
+                callback(HAL::MQTT::EVENT_CONNECTED, nullptr);
+            }
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -30,8 +37,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             break;
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-            ESP_LOGI(TAG, "TOPIC=%.*s\r\n", event->topic_len, event->topic);
-            ESP_LOGI(TAG, "DATA=%.*s\r\n", event->data_len, event->data);
+            ESP_LOGI(TAG, "TOPIC=%.*s", event->topic_len, event->topic);
+            ESP_LOGI(TAG, "DATA=%.*s", event->data_len, event->data);
             break;
         case MQTT_EVENT_ERROR:
             ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
@@ -52,32 +59,37 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-static void mqtt_init(esp_mqtt_client_config_t *cfg, esp_mqtt_client_handle_t *mqtt_client) {
+static void mqtt_init(esp_mqtt_client_config_t *cfg, esp_mqtt_client_handle_t *mqtt_client, void *arg) {
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(cfg);
     *mqtt_client = client;
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
-    esp_mqtt_client_register_event(client, esp_mqtt_event_id_t(ESP_EVENT_ANY_ID), mqtt_event_handler, nullptr);
+    esp_mqtt_client_register_event(client, esp_mqtt_event_id_t(ESP_EVENT_ANY_ID), mqtt_event_handler, arg);
     esp_mqtt_client_start(client);
 }
 
-HAL::MQTT::MQTT(const char *uri) {
+HAL::MQTT::MQTT(const char *uri, callback_t cb) {
     this->mqtt_cfg.broker.address.uri = uri;
-    mqtt_init(&this->mqtt_cfg, &this->mqtt_client);
+    this->callback.callback = cb;
+    mqtt_init(&this->mqtt_cfg, &this->mqtt_client, (void*)&this->callback);
 }
 
-HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) {
+HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, callback_t cb) {
     this->mqtt_cfg.credentials.username = username;
     this->mqtt_cfg.credentials.authentication.password = pwd;
     this->mqtt_cfg.broker.address.uri = uri;
-    mqtt_init(&this->mqtt_cfg, &this->mqtt_client);
+
+    this->callback.callback = cb;
+    mqtt_init(&this->mqtt_cfg, &this->mqtt_client, (void*)&this->callback);
 }
 
-HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca) {
+HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca, callback_t cb) {
     this->mqtt_cfg.credentials.username = username;
     this->mqtt_cfg.credentials.authentication.password = pwd;
     this->mqtt_cfg.broker.address.uri = uri;
     this->mqtt_cfg.broker.verification.certificate = (const char*) ca;
-    mqtt_init(&this->mqtt_cfg, &this->mqtt_client);
+
+    this->callback.callback = cb;
+    mqtt_init(&this->mqtt_cfg, &this->mqtt_client, (void*)&this->callback);
 }
 
 HAL::MQTT::~MQTT() {
@@ -92,10 +104,17 @@ void HAL::MQTT::Unsubscirbe(const char *topic) {
     esp_mqtt_client_unsubscribe(this->mqtt_client, topic);
 }
 
-int HAL::MQTT::Publish(const char *topic, const char *str, int qos, int retain) {
-    return esp_mqtt_client_publish(this->mqtt_client, topic, str, strlen(str), qos, retain);
+int HAL::MQTT::Publish(const char *topic, HAL::MQTT::msg_t &msg) {
+    return esp_mqtt_client_publish(this->mqtt_client,
+                                   topic,
+                                   msg.data,
+                                   int(msg.len == 0 ? strlen(msg.data) : msg.len),
+                                   msg.qos,
+                                   msg.retain);
 }
 
-int HAL::MQTT::Publish(const char *topic, const char *data, int len, int qos, int retain) {
-    return esp_mqtt_client_publish(this->mqtt_client, topic, data, len, qos, retain);
+void HAL::MQTT::BindingEvent(uint32_t id) {
+    if(id < HAL::MQTT::EVENT_MAX) {
+        this->callback.event_mask |= id;
+    }
 }
