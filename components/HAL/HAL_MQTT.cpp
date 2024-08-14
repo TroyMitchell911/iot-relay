@@ -7,21 +7,28 @@
 
 #define TAG "[HAL::MQTT]"
 
+typedef struct {
+    HAL::MQTT::callback_t callback;
+    uint32_t event_mask;
+}s_callback_t;
+
+static void run_callback(void *arg, HAL::MQTT::event_t event, void *data) {
+    auto lst = (std::list<s_callback_t>*)arg;
+    for (auto & it : *lst) {
+        if(it.event_mask & event) {
+            it.callback(event, data);
+        }
+    }
+}
+
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
     ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32, base, event_id);
     auto event = (esp_mqtt_event_handle_t)event_data;
-    esp_mqtt_client_handle_t client = event->client;
-    auto callback = *((HAL::MQTT::callback_t*)handler_args);
-    uint32_t callback_event_mask = *(uint32_t*)((uint32_t)handler_args + sizeof(HAL::MQTT::callback_t));
-
-    printf("callback: %p, event_mask: %ld\n", callback, callback_event_mask);
 
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-            if((callback_event_mask & HAL::MQTT::EVENT_CONNECTED) && callback) {
-                callback(HAL::MQTT::EVENT_CONNECTED, nullptr);
-            }
+            run_callback(handler_args, HAL::MQTT::EVENT_CONNECTED, nullptr);
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -44,9 +51,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             msg.len = event->data_len;
             msg.topic = event->topic;
             msg.topic_len = event->topic_len;
-            if((callback_event_mask & HAL::MQTT::EVENT_DATA) && callback) {
-                callback(HAL::MQTT::EVENT_DATA, &msg);
-            }
+            run_callback(handler_args, HAL::MQTT::EVENT_DATA, &msg);
             break;
         }
         case MQTT_EVENT_ERROR:
@@ -76,28 +81,25 @@ static void mqtt_init(esp_mqtt_client_config_t *cfg, esp_mqtt_client_handle_t *m
     esp_mqtt_client_start(client);
 }
 
-HAL::MQTT::MQTT(const char *uri, callback_t cb) {
+HAL::MQTT::MQTT(const char *uri) {
     this->mqtt_cfg.broker.address.uri = uri;
-    this->callback.callback = cb;
     mqtt_init(&this->mqtt_cfg, &this->mqtt_client, (void*)&this->callback);
 }
 
-HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, callback_t cb) {
+HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) {
     this->mqtt_cfg.credentials.username = username;
     this->mqtt_cfg.credentials.authentication.password = pwd;
     this->mqtt_cfg.broker.address.uri = uri;
 
-    this->callback.callback = cb;
     mqtt_init(&this->mqtt_cfg, &this->mqtt_client, (void*)&this->callback);
 }
 
-HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca, callback_t cb) {
+HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca) {
     this->mqtt_cfg.credentials.username = username;
     this->mqtt_cfg.credentials.authentication.password = pwd;
     this->mqtt_cfg.broker.address.uri = uri;
     this->mqtt_cfg.broker.verification.certificate = (const char*) ca;
 
-    this->callback.callback = cb;
     mqtt_init(&this->mqtt_cfg, &this->mqtt_client, (void*)&this->callback);
 }
 
@@ -113,10 +115,22 @@ void HAL::MQTT::Unsubscirbe(const char *topic) {
     esp_mqtt_client_unsubscribe(this->mqtt_client, topic);
 }
 
-void HAL::MQTT::BindingEvent(uint32_t id) {
-    if(id < HAL::MQTT::EVENT_MAX) {
-        this->callback.event_mask |= id;
+void HAL::MQTT::BindingCallback(HAL::MQTT::callback_t cb, uint32_t id) {
+    if(id >= HAL::MQTT::EVENT_MAX)
+        return;
+
+    s_callback_t s_callback = {.callback = cb, .event_mask = id};
+
+    for (auto it = this->callback.begin(); it != this->callback.end(); it++) {
+        if(it->callback == cb) {
+            s_callback = *it;
+            s_callback.event_mask |= id;
+            return;
+        }
     }
+
+    this->callback.push_back(s_callback);
+
 }
 
 int HAL::MQTT::Publish(HAL::MQTT::msg_t &msg) {

@@ -6,6 +6,7 @@
 #define RELAY_HAL_MQTT_H
 
 #include <mqtt_client.h>
+#include <list>
 
 namespace HAL {
     class MQTT {
@@ -41,17 +42,13 @@ namespace HAL {
     private:
         esp_mqtt_client_config_t mqtt_cfg{};
         esp_mqtt_client_handle_t mqtt_client;
-        s_callback_t callback = {
-                nullptr,
-                EVENT_DATA
-        };
+        std::list<s_callback_t> callback;
 
     public:
-        /* default: the callback just subscribe EVENT_DATA */
-        MQTT(const char *uri, callback_t callback);
-        MQTT(const char *uri, const char *username, const char *pwd, callback_t callback);
-        MQTT(const char *uri, const char *username, const char *pwd, const char *ca, callback_t callback);
-        void BindingEvent(uint32_t id);
+        MQTT(const char *uri);
+        MQTT(const char *uri, const char *username, const char *pwd);
+        MQTT(const char *uri, const char *username, const char *pwd, const char *ca);
+        void BindingCallback(HAL::MQTT::callback_t cb, uint32_t id);
         void Subscribe(const char *topic, uint8_t qos);
         void Unsubscirbe(const char *topic);
         int Publish(msg_t &msg);
