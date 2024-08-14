@@ -13,13 +13,20 @@ namespace App {
     public:
         typedef enum {
             LIGHT,
+            SWITCH,
             ENTITY_TYPE_MAX
         }entity_type_t;
     private:
 #define TOPIC_MAX_NUM   64
 
     private:
-        HAL::MQTT *mqtt = nullptr;
+        const char *online_topic = "homeassistant/status";
+        const char *offline_topic = "homeassistant/status";
+        const char *online_content = "online";
+        const char *offline_content = "offline";
+
+    protected:
+        HAL::MQTT *mqtt;
         entity_type_t entity_type = App::HomeAssistant::ENTITY_TYPE_MAX;
         const char *entity_where;
         const char *entity_name;
@@ -34,12 +41,11 @@ namespace App {
 
     private:
         void Init(const char *where, entity_type_t type, const char *name, bool discovery);
+        static void Process(HAL::MQTT::event_t event, void *data, void *arg);
 
     public:
         void GetTopic(char *dst, const char *suffix);
-        virtual void Process(char *topic, int topic_len, char *data, int data_len) {
-            printf("TOPIC: %.*s, DATA:%.*s\n", topic_len, topic, data_len, data);
-        }
+
         HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name);
         HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name, bool discovery);
         ~HomeAssistant();
