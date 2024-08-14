@@ -4,6 +4,16 @@
 
 #include "Switch.h"
 
+static void update_status(HAL::MQTT *mqtt, char *status_topic, bool status) {
+    HAL::MQTT::msg_t msg{};
+
+    msg.data = (char*)(status ? "ON" : "OFF");
+    msg.retain = 1;
+    msg.qos = 0;
+    msg.topic = status_topic;
+    mqtt->Publish(msg);
+}
+
 App::Switch::Switch(HAL::MQTT *mqtt, const char *where, App::HomeAssistant::entity_type_t type, const char *name)
         : HomeAssistant(mqtt, where, type, name) {
     this->mqtt->BindingCallback(App::Switch::Process, HAL::MQTT::EVENT_DATA, (void*)this);
@@ -29,15 +39,17 @@ void App::Switch::Process(HAL::MQTT::event_t event, void *data, void *arg) {
                 sw->sw_status = true;
             } else if(strncmp(r_msg->data, "OFF", r_msg->len) == 0) {
                 sw->sw_status = false;
+            } else {
+                return;
             }
 
-            HAL::MQTT::msg_t msg{};
-
-            msg.data = (char*)(sw->sw_status ? "ON" : "OFF");
-            msg.retain = 1;
-            msg.qos = 0;
-            msg.topic = sw->status_topic;
-            sw->mqtt->Publish(msg);
+            update_status(sw->mqtt, sw->status_topic, sw->sw_status);
         }
     }
+}
+
+void App::Switch::Act() {
+    this->sw_status = this->sw_status ? false : true;
+    update_status(this->mqtt, this->status_topic, this->sw_status);
+
 }
