@@ -37,13 +37,6 @@ void App::HomeAssistant::Init(const char *where, entity_type_t type, const char 
 
         mqtt->Subscribe(this->online_topic, 0);
         mqtt->Subscribe(this->offline_topic, 0);
-
-        HAL::MQTT::msg_t msg{};
-        msg.topic = this->discovery_topic;
-        msg.data = cJSON_Print(this->discovery_content);
-        msg.qos = 0;
-        printf("%s\n", msg.data);
-        mqtt->Publish(msg);
     }
 
     mqtt->Subscribe(this->command_topic, 0);

@@ -16,7 +16,7 @@ namespace App {
             SWITCH,
             ENTITY_TYPE_MAX
         }entity_type_t;
-    private:
+    public:
 #define TOPIC_MAX_NUM   64
 
     private:
