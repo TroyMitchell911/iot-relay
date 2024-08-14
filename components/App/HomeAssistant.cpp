@@ -14,6 +14,10 @@ static const char *g_prefix = "homeassistant";
 void App::HomeAssistant::Init(const char *where, entity_type_t type, const char *name, bool discovery) {
     char buffer[32];
 
+    this->entity_where = where;
+    this->entity_name = name;
+    this->entity_type = type;
+
     this->GetTopic(this->command_topic, "command");
     ESP_LOGI(TAG, "command_topic: %s", this->command_topic);
     mqtt->Subscribe(this->command_topic, 0);
@@ -57,10 +61,6 @@ void App::HomeAssistant::Prefix(const char *prefix) {
 
 void App::HomeAssistant::GetTopic(char *dst, const char *suffix) {
     sprintf(dst, "%s/%s/%s/%s", this->entity_where, type2str[this->entity_type], this->entity_name, suffix);
-}
-
-void App::HomeAssistant::Process(char *topic, int topic_len, char *data, int data_len) {
-
 }
 
 

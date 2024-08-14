@@ -37,7 +37,9 @@ namespace App {
 
     public:
         void GetTopic(char *dst, const char *suffix);
-        void Process(char *topic, int topic_len, char *data, int data_len);
+        virtual void Process(char *topic, int topic_len, char *data, int data_len) {
+            printf("TOPIC: %.*s, DATA:%.*s\n", topic_len, topic, data_len, data);
+        }
         HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name);
         HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name, bool discovery);
         ~HomeAssistant();
