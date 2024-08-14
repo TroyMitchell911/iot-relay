@@ -10,13 +10,14 @@
 typedef struct {
     HAL::MQTT::callback_t callback;
     uint32_t event_mask;
+    void *arg;
 }s_callback_t;
 
 static void run_callback(void *arg, HAL::MQTT::event_t event, void *data) {
     auto lst = (std::list<s_callback_t>*)arg;
     for (auto & it : *lst) {
         if(it.event_mask & event) {
-            it.callback(event, data);
+            it.callback(event, data, it.arg);
         }
     }
 }
