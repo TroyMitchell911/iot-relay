@@ -32,12 +32,13 @@ namespace HAL {
             int topic_len;
         }msg_t;
 
-        typedef void (*callback_t)(event_t event, void *data);
+        typedef void (*callback_t)(event_t event, void *data, void *arg);
 
     private:
         typedef struct {
             callback_t callback;
             uint32_t event_mask;
+            void *arg;
         }s_callback_t;
     private:
         esp_mqtt_client_config_t mqtt_cfg{};
@@ -48,7 +49,8 @@ namespace HAL {
         MQTT(const char *uri);
         MQTT(const char *uri, const char *username, const char *pwd);
         MQTT(const char *uri, const char *username, const char *pwd, const char *ca);
-        void BindingCallback(HAL::MQTT::callback_t cb, uint32_t id);
+        void BindingCallback(HAL::MQTT::callback_t cb, uint32_t id, void *arg);
+        void AttachEvent(HAL::MQTT::callback_t cb, uint32_t id);
         void Subscribe(const char *topic, uint8_t qos);
         void Unsubscirbe(const char *topic);
         int Publish(msg_t &msg);

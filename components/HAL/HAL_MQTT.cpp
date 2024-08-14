@@ -115,22 +115,30 @@ void HAL::MQTT::Unsubscirbe(const char *topic) {
     esp_mqtt_client_unsubscribe(this->mqtt_client, topic);
 }
 
-void HAL::MQTT::BindingCallback(HAL::MQTT::callback_t cb, uint32_t id) {
+void HAL::MQTT::BindingCallback(HAL::MQTT::callback_t cb, uint32_t id, void *arg) {
     if(id >= HAL::MQTT::EVENT_MAX)
         return;
 
-    s_callback_t s_callback = {.callback = cb, .event_mask = id};
-
     for (auto it = this->callback.begin(); it != this->callback.end(); it++) {
         if(it->callback == cb) {
-            s_callback = *it;
-            s_callback.event_mask |= id;
             return;
         }
     }
 
+    s_callback_t s_callback = {.callback = cb, .event_mask = id, .arg = arg};
     this->callback.push_back(s_callback);
+}
 
+void HAL::MQTT::AttachEvent(HAL::MQTT::callback_t cb, uint32_t id) {
+    if(id >= HAL::MQTT::EVENT_MAX)
+        return;
+
+    for (auto it = this->callback.begin(); it != this->callback.end(); it++) {
+        if(it->callback == cb) {
+            it->event_mask |= id;
+            return;
+        }
+    }
 }
 
 int HAL::MQTT::Publish(HAL::MQTT::msg_t &msg) {
