@@ -10,6 +10,7 @@
 
 namespace HAL {
     class MQTT {
+
     public:
         typedef enum {
             EVENT_CONNECTED = 0x01,
@@ -40,10 +41,17 @@ namespace HAL {
             uint32_t event_mask;
             void *arg;
         }s_callback_t;
+
     private:
         esp_mqtt_client_config_t mqtt_cfg{};
         esp_mqtt_client_handle_t mqtt_client;
         std::list<s_callback_t> callback;
+        TaskHandle_t mqtt_send_task_handler;
+
+    private:
+        static void EventHandle(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
+        static void RunCallback(void *arg, HAL::MQTT::event_t event, void *data);
+        static void SendTask(void *arg);
 
     public:
         MQTT(const char *uri);

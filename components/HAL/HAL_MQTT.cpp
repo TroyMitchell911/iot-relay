@@ -7,105 +7,38 @@
 
 #define TAG "[HAL::MQTT]"
 
-typedef struct {
-    HAL::MQTT::callback_t callback;
-    uint32_t event_mask;
-    void *arg;
-}s_callback_t;
+HAL::MQTT::MQTT(const char *uri) : MQTT(uri, nullptr, nullptr, nullptr) {
 
-static void run_callback(void *arg, HAL::MQTT::event_t event, void *data) {
-    auto lst = (std::list<s_callback_t>*)arg;
-    for (auto & it : *lst) {
-        if(it.event_mask & event) {
-            it.callback(event, data, it.arg);
-        }
-    }
 }
 
-static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
-    ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32, base, event_id);
-    auto event = (esp_mqtt_event_handle_t)event_data;
+HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) : MQTT(uri, username, pwd, nullptr) {
 
-    switch ((esp_mqtt_event_id_t)event_id) {
-        case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-            run_callback(handler_args, HAL::MQTT::EVENT_CONNECTED, nullptr);
-            break;
-        case MQTT_EVENT_DISCONNECTED:
-            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
-            break;
-        case MQTT_EVENT_SUBSCRIBED:
-            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-            break;
-        case MQTT_EVENT_UNSUBSCRIBED:
-            ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
-            break;
-        case MQTT_EVENT_PUBLISHED:
-            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
-            break;
-        case MQTT_EVENT_DATA:{
-            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-            ESP_LOGI(TAG, "TOPIC=%.*s", event->topic_len, event->topic);
-            ESP_LOGI(TAG, "DATA=%.*s", event->data_len, event->data);
-            HAL::MQTT::msg_t msg{};
-            msg.data = event->data;
-            msg.len = event->data_len;
-            msg.topic = event->topic;
-            msg.topic_len = event->topic_len;
-            run_callback(handler_args, HAL::MQTT::EVENT_DATA, &msg);
-            break;
-        }
-        case MQTT_EVENT_ERROR:
-            ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
-            if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-                ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event->error_handle->esp_tls_last_esp_err);
-                ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event->error_handle->esp_tls_stack_err);
-                ESP_LOGE(TAG, "Last captured errno : %d (%s)",  event->error_handle->esp_transport_sock_errno,
-                         strerror(event->error_handle->esp_transport_sock_errno));
-            } else if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
-                ESP_LOGE(TAG, "Connection refused error: 0x%x", event->error_handle->connect_return_code);
-            } else {
-                ESP_LOGE(TAG, "Unknown error type: 0x%x", event->error_handle->error_type);
-            }
-            break;
-        default:
-            ESP_LOGW(TAG, "Other event id:%d", event->event_id);
-            break;
-    }
-}
-
-static void mqtt_init(esp_mqtt_client_config_t *cfg, esp_mqtt_client_handle_t *mqtt_client, void *arg) {
-    esp_mqtt_client_handle_t client = esp_mqtt_client_init(cfg);
-    *mqtt_client = client;
-    /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
-    esp_mqtt_client_register_event(client, esp_mqtt_event_id_t(ESP_EVENT_ANY_ID), mqtt_event_handler, arg);
-    esp_mqtt_client_start(client);
-}
-
-HAL::MQTT::MQTT(const char *uri) {
-    this->mqtt_cfg.broker.address.uri = uri;
-    mqtt_init(&this->mqtt_cfg, &this->mqtt_client, (void*)&this->callback);
-}
-
-HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) {
-    this->mqtt_cfg.credentials.username = username;
-    this->mqtt_cfg.credentials.authentication.password = pwd;
-    this->mqtt_cfg.broker.address.uri = uri;
-
-    mqtt_init(&this->mqtt_cfg, &this->mqtt_client, (void*)&this->callback);
 }
 
 HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca) {
+    xTaskCreate(HAL::MQTT::SendTask,
+                "mesh send",
+                4096,
+                nullptr,
+                0,
+                &this->mqtt_send_task_handler);
+
     this->mqtt_cfg.credentials.username = username;
     this->mqtt_cfg.credentials.authentication.password = pwd;
     this->mqtt_cfg.broker.address.uri = uri;
     this->mqtt_cfg.broker.verification.certificate = (const char*) ca;
 
-    mqtt_init(&this->mqtt_cfg, &this->mqtt_client, (void*)&this->callback);
+    this->mqtt_client = esp_mqtt_client_init(&this->mqtt_cfg);
+    /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
+    esp_mqtt_client_register_event(this->mqtt_client,
+                                   esp_mqtt_event_id_t(ESP_EVENT_ANY_ID),
+                                   HAL::MQTT::EventHandle,
+                                   (void*)&this->callback);
+    esp_mqtt_client_start(this->mqtt_client);
 }
 
 HAL::MQTT::~MQTT() {
-
+    vTaskDelete(this->mqtt_send_task_handler);
 }
 
 void HAL::MQTT::Subscribe(const char *topic, uint8_t qos) {
@@ -149,4 +82,72 @@ int HAL::MQTT::Publish(HAL::MQTT::msg_t &msg) {
                                    int(msg.len == 0 ? strlen(msg.data) : msg.len),
                                    msg.qos,
                                    msg.retain);
+}
+
+void HAL::MQTT::SendTask(void *arg) {
+    for(;;) {
+        printf("HAL::MQTT::SendTask\n");
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+}
+
+void HAL::MQTT::RunCallback(void *arg, HAL::MQTT::event_t event, void *data) {
+    auto lst = (std::list<s_callback_t>*)arg;
+    for (auto & it : *lst) {
+        if(it.event_mask & event) {
+            it.callback(event, data, it.arg);
+        }
+    }
+}
+
+void HAL::MQTT::EventHandle(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+    ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32, base, event_id);
+    auto event = (esp_mqtt_event_handle_t)event_data;
+
+    switch (event_id) {
+        case MQTT_EVENT_CONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+            RunCallback(handler_args, HAL::MQTT::EVENT_CONNECTED, nullptr);
+            break;
+        case MQTT_EVENT_DISCONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+            break;
+        case MQTT_EVENT_SUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_UNSUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_PUBLISHED:
+            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_DATA:{
+            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
+            ESP_LOGI(TAG, "TOPIC=%.*s", event->topic_len, event->topic);
+            ESP_LOGI(TAG, "DATA=%.*s", event->data_len, event->data);
+            HAL::MQTT::msg_t msg{};
+            msg.data = event->data;
+            msg.len = event->data_len;
+            msg.topic = event->topic;
+            msg.topic_len = event->topic_len;
+            RunCallback(handler_args, HAL::MQTT::EVENT_DATA, &msg);
+            break;
+        }
+        case MQTT_EVENT_ERROR:
+            ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
+            if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+                ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event->error_handle->esp_tls_last_esp_err);
+                ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event->error_handle->esp_tls_stack_err);
+                ESP_LOGE(TAG, "Last captured errno : %d (%s)",  event->error_handle->esp_transport_sock_errno,
+                         strerror(event->error_handle->esp_transport_sock_errno));
+            } else if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+                ESP_LOGE(TAG, "Connection refused error: 0x%x", event->error_handle->connect_return_code);
+            } else {
+                ESP_LOGE(TAG, "Unknown error type: 0x%x", event->error_handle->error_type);
+            }
+            break;
+        default:
+            ESP_LOGW(TAG, "Other event id:%d", event->event_id);
+            break;
+    }
 }
