@@ -1,3 +1,5 @@
 /build
 /cmake-build-debug-esp32c3
 /sdkconfig.old
+/main/Kconfig.projbuild
+/main/ca_emqx_troy_home.crt
