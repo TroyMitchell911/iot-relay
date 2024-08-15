@@ -6,6 +6,7 @@
 #define RELAY_HAL_GPIO_H
 
 #include <cstdint>
+#include <soc/gpio_num.h>
 
 namespace HAL{
 #define GPIO_USE_GROUP          0
