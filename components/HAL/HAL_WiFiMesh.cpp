@@ -24,6 +24,13 @@ void HAL::WiFiMesh::Start(HAL::WiFiMesh::wifi_mesh_cfg_t *config) {
                 0,
                 &this->mesh_send_task_handler);
 
+    xTaskCreate(HAL::WiFiMesh::RecvTask,
+                "mesh recv",
+                4096,
+                nullptr,
+                0,
+                &this->mesh_recv_task_handler);
+
 
     /*  create network interfaces for mesh (only station instance saved for further manipulation, soft AP instance ignored */
     ESP_ERROR_CHECK(esp_netif_create_default_wifi_mesh_netifs(&netif_sta, nullptr));
@@ -105,8 +112,11 @@ void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, uint32_t event
     if(!cb)
         return;
 
-    if(event >= HAL::WiFiMesh::EVENT_MAX)
+    if(event > HAL::WiFiMesh::EVENT_MAX)
         return;
+
+    if(event == HAL::WiFiMesh::EVENT_MAX)
+        event -= 1;
 
     for (auto & it : this->callback) {
         if(it.callback == cb) {
@@ -122,8 +132,11 @@ void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, uint32_t event
 void HAL::WiFiMesh::AttachEvent(HAL::WiFiMesh::callback_t cb, uint32_t event) {
     if(!cb)
         return;
-    if(event >= HAL::WiFiMesh::EVENT_MAX)
+    if(event > HAL::WiFiMesh::EVENT_MAX)
         return;
+
+    if(event == HAL::WiFiMesh::EVENT_MAX)
+        event -= 1;
 
     for (auto & it : this->callback) {
         if(it.callback == cb) {
@@ -167,13 +180,10 @@ void HAL::WiFiMesh::RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *d
 }
 
 void HAL::WiFiMesh::IPEventHandle(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
-    auto *callback = (s_callback_t*)arg;
-
     auto *event = (ip_event_got_ip_t *) event_data;
     ESP_LOGI(TAG, "<IP_EVENT_STA_GOT_IP>IP:" IPSTR, IP2STR(&event->ip_info.ip));
 
-    printf("%lx\n", callback->event_mask);
-    RunCallback(callback, HAL::WiFiMesh::EVENT_GOT_IP, &event->ip_info.ip);
+    RunCallback(arg, HAL::WiFiMesh::EVENT_GOT_IP, &event->ip_info.ip);
 }
 
 void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
@@ -320,6 +330,9 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
                      MAC2STR(root_conflict->addr),
                      root_conflict->rssi,
                      root_conflict->capacity);
+
+            /* The root will change */
+            RunCallback(arg, HAL::WiFiMesh::EVENT_ROOT_WILL_CHANGE, nullptr);
         }
             break;
         case MESH_EVENT_CHANNEL_SWITCH: {
@@ -391,5 +404,26 @@ void HAL::WiFiMesh::Publish(void *data, size_t len) {
     /* send to root and root send to mqtt */
     if(is_mesh_connected) {
 
+    }
+}
+
+void HAL::WiFiMesh::RecvTask(void *arg) {
+    mesh_addr_t from;
+    mesh_data_t data;
+    int flag = 0;
+    esp_err_t err;
+
+    for(;;) {
+        err = esp_mesh_recv(&from, &data, portMAX_DELAY, &flag, nullptr, 0);
+        if(err != ESP_OK || !data.size)
+            continue;
+
+        /* process */
+        if(data.size == sizeof(HAL::MQTT::msg_t)) {
+
+        }
+        else {
+            /* callback */
+        }
     }
 }

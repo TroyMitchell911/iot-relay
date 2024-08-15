@@ -24,7 +24,8 @@ namespace HAL {
         typedef enum {
             EVENT_GOT_IP = 0x01,
             EVENT_DATA = EVENT_GOT_IP << 1,
-            EVENT_MAX = EVENT_DATA << 1,
+            EVENT_ROOT_WILL_CHANGE = EVENT_DATA << 1,
+            EVENT_MAX = EVENT_ROOT_WILL_CHANGE << 1,
         }event_t;
 
         typedef void (*callback_t)(event_t event, void *data, void *arg);
@@ -38,6 +39,7 @@ namespace HAL {
         }s_callback_t;
         std::list<s_callback_t> callback;
         TaskHandle_t mesh_send_task_handler;
+        TaskHandle_t mesh_recv_task_handler;
         QueueHandle_t mesh_msg_queue;
 
     private:
@@ -49,6 +51,7 @@ namespace HAL {
         static void RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *data);
 
         [[noreturn]] static void SendTask(void *arg);
+        [[noreturn]] static void RecvTask(void *arg);
 
     public:
         WiFiMesh() = default;
