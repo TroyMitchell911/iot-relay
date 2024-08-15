@@ -31,7 +31,9 @@ static App::Switch *sw;
 static void mqtt_event(HAL::MQTT::event_t event, void *data, void *arg) {
     if(event == HAL::MQTT::EVENT_CONNECTED) {
         printf("EVENT_CONNECTED\n");
-        sw = new App::Switch(mqtt, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
+        HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
+        mesh.SetMQTT(mqtt);
+        sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
     }
 }
 #include "ca_emqx_troy_home.crt"
@@ -65,7 +67,7 @@ __attribute__((noreturn)) void app_main(void) {
     key_state = key->Get();
 
     HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
-    mesh.BindingEvent(wifi_event, nullptr, int(HAL::WiFiMesh::EVENT_GOT_IP));
+    mesh.BindingCallback(wifi_event, uint32_t(HAL::WiFiMesh::EVENT_GOT_IP), nullptr);
     HAL::WiFiMesh::wifi_mesh_cfg_t mesh_cfg{};
     mesh_cfg.max_connections = CONFIG_MESH_AP_CONNECTIONS;
     mesh_cfg.mesh_ap_pwd = CONFIG_MESH_AP_PASSWD;

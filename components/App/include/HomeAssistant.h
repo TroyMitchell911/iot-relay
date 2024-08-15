@@ -6,7 +6,7 @@
 #define RELAY_HOMEASSISTANT_H
 
 #include "cJSON.h"
-#include "HAL_MQTT.h"
+#include "HAL_WiFiMesh.h"
 
 namespace App {
     class HomeAssistant {
@@ -26,7 +26,7 @@ namespace App {
         const char *offline_content = "offline";
 
     protected:
-        HAL::MQTT *mqtt;
+        HAL::WiFiMesh *wifi_mesh;
         entity_type_t entity_type = App::HomeAssistant::ENTITY_TYPE_MAX;
         const char *entity_where;
         const char *entity_name;
@@ -41,13 +41,13 @@ namespace App {
 
     private:
         void Init(const char *where, entity_type_t type, const char *name, bool discovery);
-        static void Process(HAL::MQTT::event_t event, void *data, void *arg);
+        static void Process(HAL::WiFiMesh::event_t event, void *data, void *arg);
 
     public:
         void GetTopic(char *dst, const char *suffix);
 
-        HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name);
-        HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name, bool discovery);
+        HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name);
+        HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name, bool discovery);
         ~HomeAssistant();
     };
 }

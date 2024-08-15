@@ -14,9 +14,9 @@ namespace App {
         bool sw_status = false;
         char status_topic[TOPIC_MAX_NUM];
     private:
-        static void Process(HAL::MQTT::event_t event, void *data, void *arg);
+        static void Process(HAL::WiFiMesh::event_t event, void *data, void *arg);
     public:
-        Switch(HAL::MQTT *mqtt, const char *where, const char *name);
+        Switch(HAL::WiFiMesh *mesh, const char *where, const char *name);
         void Act();
     };
 }

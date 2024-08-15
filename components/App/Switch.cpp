@@ -4,19 +4,19 @@
 
 #include "Switch.h"
 
-static void update_status(HAL::MQTT *mqtt, char *status_topic, bool status) {
+static void update_status(HAL::WiFiMesh *mesh, char *status_topic, bool status) {
     HAL::MQTT::msg_t msg{};
 
     msg.data = (char*)(status ? "ON" : "OFF");
     msg.retain = 1;
     msg.qos = 0;
     msg.topic = status_topic;
-    mqtt->Publish(msg);
+    mesh->Publish(msg);
 }
 
-App::Switch::Switch(HAL::MQTT *mqtt, const char *where, const char *name)
-        : HomeAssistant(mqtt, where, App::HomeAssistant::SWITCH, name) {
-    this->mqtt->BindingCallback(App::Switch::Process, HAL::MQTT::EVENT_DATA, (void*)this);
+App::Switch::Switch(HAL::WiFiMesh *mesh, const char *where, const char *name)
+        : HomeAssistant(mesh, where, App::HomeAssistant::SWITCH, name) {
+    this->wifi_mesh->BindingCallback(App::Switch::Process, HAL::WiFiMesh::EVENT_DATA, (void*)this);
     this->GetTopic(this->status_topic, "status");
 
     cJSON_AddStringToObject(this->discovery_content, "state_topic", this->status_topic);
@@ -27,12 +27,12 @@ App::Switch::Switch(HAL::MQTT *mqtt, const char *where, const char *name)
     msg.data = cJSON_Print(this->discovery_content);
     msg.qos = 0;
     printf("%s\n", msg.data);
-    mqtt->Publish(msg);
+    this->wifi_mesh->Publish(msg);
 }
 
-void App::Switch::Process(HAL::MQTT::event_t event, void *data, void *arg) {
+void App::Switch::Process(HAL::WiFiMesh::event_t event, void *data, void *arg) {
     auto *sw = (App::Switch*)arg;
-    if(event == HAL::MQTT::EVENT_DATA) {
+    if(event == HAL::WiFiMesh::EVENT_DATA) {
         auto *r_msg = (HAL::MQTT::msg_t*) data;
         if(strncmp(r_msg->topic, sw->command_topic, r_msg->topic_len) == 0) {
             if(strncmp(r_msg->data, "ON", r_msg->len) == 0) {
@@ -43,13 +43,12 @@ void App::Switch::Process(HAL::MQTT::event_t event, void *data, void *arg) {
                 return;
             }
 
-            update_status(sw->mqtt, sw->status_topic, sw->sw_status);
+            update_status(sw->wifi_mesh, sw->status_topic, sw->sw_status);
         }
     }
 }
 
 void App::Switch::Act() {
     this->sw_status = this->sw_status ? false : true;
-    update_status(this->mqtt, this->status_topic, this->sw_status);
-
+    update_status(this->wifi_mesh, this->status_topic, this->sw_status);
 }

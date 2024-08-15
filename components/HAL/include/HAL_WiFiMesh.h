@@ -23,7 +23,8 @@ namespace HAL {
 
         typedef enum {
             EVENT_GOT_IP = 0x01,
-            EVENT_MAX = EVENT_GOT_IP << 1,
+            EVENT_DATA = EVENT_GOT_IP << 1,
+            EVENT_MAX = EVENT_DATA << 1,
         }event_t;
 
         typedef void (*callback_t)(event_t event, void *data, void *arg);

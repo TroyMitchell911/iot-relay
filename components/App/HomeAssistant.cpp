@@ -35,38 +35,38 @@ void App::HomeAssistant::Init(const char *where, entity_type_t type, const char 
         cJSON_AddStringToObject(this->discovery_content, "command_topic", this->command_topic);
         cJSON_AddStringToObject(this->discovery_content, "unique_id", buffer);
 
-        mqtt->Subscribe(this->online_topic, 0);
-        mqtt->Subscribe(this->offline_topic, 0);
+        wifi_mesh->GetMQTT().Subscribe(this->online_topic, 0);
+        wifi_mesh->GetMQTT().Subscribe(this->offline_topic, 0);
     }
 
-    mqtt->Subscribe(this->command_topic, 0);
+    wifi_mesh->GetMQTT().Subscribe(this->command_topic, 0);
 }
 
-App::HomeAssistant::HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name)
-                    :  HomeAssistant(mqtt, where, type, name, true) {
+App::HomeAssistant::HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name)
+                    :  HomeAssistant(mesh, where, type, name, true) {
 
 }
 
-App::HomeAssistant::HomeAssistant(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name, bool discovery) {
+App::HomeAssistant::HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name, bool discovery) {
     if(type >= ENTITY_TYPE_MAX)
         return;
-    this->mqtt = mqtt;
+    this->wifi_mesh = mesh;
     this->Init(where, type, name, discovery);
-    this->mqtt->BindingCallback(App::HomeAssistant::Process, HAL::MQTT::EVENT_DATA, (void*)this);
+    this->wifi_mesh->BindingCallback(App::HomeAssistant::Process, HAL::WiFiMesh::EVENT_DATA, (void*)this);
 }
 
 App::HomeAssistant::~HomeAssistant() {
     if(this->entity_discovery) {
-        mqtt->Unsubscirbe(this->online_topic);
-        mqtt->Unsubscirbe(this->offline_topic);
-        mqtt->Unsubscirbe(this->discovery_topic);
+        wifi_mesh->GetMQTT().Unsubscirbe(this->online_topic);
+        wifi_mesh->GetMQTT().Unsubscirbe(this->offline_topic);
+        wifi_mesh->GetMQTT().Unsubscirbe(this->discovery_topic);
         if(this->discovery_topic)
             free(this->discovery_topic);
         if(this->discovery_content)
             cJSON_Delete(this->discovery_content);
     }
 
-    mqtt->Unsubscirbe(this->command_topic);
+    wifi_mesh->GetMQTT().Unsubscirbe(this->command_topic);
 }
 
 void App::HomeAssistant::Prefix(const char *prefix) {
@@ -77,10 +77,10 @@ void App::HomeAssistant::GetTopic(char *dst, const char *suffix) {
     sprintf(dst, "%s/%s/%s/%s", this->entity_where, type2str[this->entity_type], this->entity_name, suffix);
 }
 
-void App::HomeAssistant::Process(HAL::MQTT::event_t event, void *data, void *arg) {
+void App::HomeAssistant::Process(HAL::WiFiMesh::event_t event, void *data, void *arg) {
     auto *ha = (App::HomeAssistant*)arg;
     HAL::MQTT::msg_t msg{};
-    if(event == HAL::MQTT::EVENT_DATA) {
+    if(event == HAL::WiFiMesh::EVENT_DATA) {
         auto *r_msg = (HAL::MQTT::msg_t*)data;
 
         if(strncmp(ha->online_topic, r_msg->topic, r_msg->topic_len) == 0) {
@@ -89,7 +89,7 @@ void App::HomeAssistant::Process(HAL::MQTT::event_t event, void *data, void *arg
                 msg.topic = ha->discovery_topic;
                 msg.data = cJSON_Print(ha->discovery_content);
                 msg.qos = 0;
-                ha->mqtt->Publish(msg);
+                ha->wifi_mesh->Publish(msg);
             }
         } else if(strncmp(ha->offline_topic, r_msg->topic, r_msg->topic_len) == 0) {
             if(strncmp(ha->offline_content, r_msg->data, r_msg->len) == 0) {

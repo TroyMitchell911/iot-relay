@@ -33,7 +33,10 @@ static void run_callback(void *arg, HAL::WiFiMesh::event_t event, void *data) {
 
 static void mqtt_event_handler(HAL::MQTT::event_t event, void *data, void *arg) {
     if(event == HAL::MQTT::EVENT_DATA) {
-        /* broadcast */
+        run_callback(arg, HAL::WiFiMesh::EVENT_DATA, data);
+
+        /* do broadcast */
+
     }
 }
 
@@ -368,7 +371,7 @@ void HAL::WiFiMesh::SetMQTT(HAL::MQTT *mqtt_client) {
         return;
 
     mqtt = mqtt_client;
-    mqtt->BindingCallback(mqtt_event_handler, HAL::MQTT::EVENT_DATA, nullptr);
+    mqtt->BindingCallback(mqtt_event_handler, HAL::MQTT::EVENT_DATA, &this->callback);
 }
 
 HAL::MQTT &HAL::WiFiMesh::GetMQTT() {
