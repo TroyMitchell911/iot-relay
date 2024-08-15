@@ -11,7 +11,7 @@ static void update_status(HAL::WiFiMesh *mesh, char *status_topic, bool status) 
     msg.retain = 1;
     msg.qos = 0;
     msg.topic = status_topic;
-    mesh->Publish(msg);
+    mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t));
 }
 
 App::Switch::Switch(HAL::WiFiMesh *mesh, const char *where, const char *name)
@@ -27,7 +27,7 @@ App::Switch::Switch(HAL::WiFiMesh *mesh, const char *where, const char *name)
     msg.data = cJSON_Print(this->discovery_content);
     msg.qos = 0;
     printf("%s\n", msg.data);
-    this->wifi_mesh->Publish(msg);
+    this->wifi_mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t));
 }
 
 void App::Switch::Process(HAL::WiFiMesh::event_t event, void *data, void *arg) {

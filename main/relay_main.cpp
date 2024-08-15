@@ -71,10 +71,10 @@ __attribute__((noreturn)) void app_main(void) {
     HAL::WiFiMesh::wifi_mesh_cfg_t mesh_cfg{};
     mesh_cfg.max_connections = CONFIG_MESH_AP_CONNECTIONS;
     mesh_cfg.mesh_ap_pwd = CONFIG_MESH_AP_PASSWD;
-//    mesh_cfg.router_ssid = "troyself-wifi";
-//    mesh_cfg.router_pwd = "troy888666";
-    mesh_cfg.router_ssid = "HBDT-23F";
-    mesh_cfg.router_pwd = "hbishbis";
+    mesh_cfg.router_ssid = "troyself-wifi";
+    mesh_cfg.router_pwd = "troy888666";
+//    mesh_cfg.router_ssid = "HBDT-23F";
+//    mesh_cfg.router_pwd = "hbishbis";
     mesh_cfg.mesh_channel = CONFIG_MESH_CHANNEL;
     mesh_cfg.max_layer = CONFIG_MESH_MAX_LAYER;
     for(unsigned char & i : mesh_cfg.mesh_id) {

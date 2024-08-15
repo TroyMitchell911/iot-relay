@@ -12,7 +12,7 @@
 
 static int mesh_layer = -1;
 static mesh_addr_t mesh_parent_addr;
-static esp_netif_t *netif_sta = NULL;
+static esp_netif_t *netif_sta = nullptr;
 static bool is_mesh_connected = false;
 static HAL::MQTT* mqtt = nullptr;
 
@@ -133,19 +133,6 @@ void HAL::WiFiMesh::AttachEvent(HAL::WiFiMesh::callback_t cb, uint32_t event) {
     }
 }
 
-void HAL::WiFiMesh::Publish(HAL::MQTT::msg_t msg) {
-    if(esp_mesh_is_root()) {
-        /* mqtt send */
-        if(mqtt)
-            mqtt->Publish(msg);
-    } else {
-        /* send to root and root send to mqtt */
-        if(is_mesh_connected) {
-
-        }
-    }
-}
-
 void HAL::WiFiMesh::SetMQTT(HAL::MQTT *mqtt_client) {
     if(mqtt)
         return;
@@ -211,14 +198,14 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
         }
             break;
         case MESH_EVENT_CHILD_CONNECTED: {
-            mesh_event_child_connected_t *child_connected = (mesh_event_child_connected_t *)event_data;
+            auto *child_connected = (mesh_event_child_connected_t *)event_data;
             ESP_LOGI(TAG, "<MESH_EVENT_CHILD_CONNECTED>aid:%d, " MACSTR"",
                      child_connected->aid,
                      MAC2STR(child_connected->mac));
         }
             break;
         case MESH_EVENT_CHILD_DISCONNECTED: {
-            mesh_event_child_disconnected_t *child_disconnected = (mesh_event_child_disconnected_t *)event_data;
+            auto *child_disconnected = (mesh_event_child_disconnected_t *)event_data;
             ESP_LOGI(TAG, "<MESH_EVENT_CHILD_DISCONNECTED>aid:%d, " MACSTR"",
                      child_disconnected->aid,
                      MAC2STR(child_disconnected->mac));
@@ -255,6 +242,7 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
                      last_layer, mesh_layer, MAC2STR(mesh_parent_addr.addr),
                      esp_mesh_is_root() ? "<ROOT>" :
                      (mesh_layer == 2) ? "<layer2>" : "", MAC2STR(id.addr), connected->duty);
+            is_mesh_connected = true;
             if (esp_mesh_is_root()) {
                 esp_netif_dhcpc_stop(netif_sta);
                 esp_netif_dhcpc_start(netif_sta);
@@ -384,9 +372,24 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
     }
 }
 
-void HAL::WiFiMesh::SendTask(void *arg) {
+[[noreturn]] void HAL::WiFiMesh::SendTask(void *arg) {
     for(;;) {
-        printf("HAL::WiFiMesh::SendTask\n");
         vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+}
+
+void HAL::WiFiMesh::Publish(void *data, size_t len) {
+    if(esp_mesh_is_root()) {
+        /* mqtt send */
+        if(mqtt && len == sizeof(HAL::MQTT::msg_t)) {
+            auto *msg = (HAL::MQTT::msg_t*)data;
+            mqtt->Publish(*msg);
+            return;
+        }
+    }
+
+    /* send to root and root send to mqtt */
+    if(is_mesh_connected) {
+
     }
 }

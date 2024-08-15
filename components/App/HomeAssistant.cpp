@@ -89,7 +89,7 @@ void App::HomeAssistant::Process(HAL::WiFiMesh::event_t event, void *data, void 
                 msg.topic = ha->discovery_topic;
                 msg.data = cJSON_Print(ha->discovery_content);
                 msg.qos = 0;
-                ha->wifi_mesh->Publish(msg);
+                ha->wifi_mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t));
             }
         } else if(strncmp(ha->offline_topic, r_msg->topic, r_msg->topic_len) == 0) {
             if(strncmp(ha->offline_content, r_msg->data, r_msg->len) == 0) {

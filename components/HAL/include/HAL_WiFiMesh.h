@@ -38,6 +38,7 @@ namespace HAL {
         }s_callback_t;
         std::list<s_callback_t> callback;
         TaskHandle_t mesh_send_task_handler;
+        QueueHandle_t mesh_msg_queue;
 
     private:
         static void IPEventHandle(void *arg, esp_event_base_t event_base,
@@ -46,7 +47,8 @@ namespace HAL {
         static void MeshEventHandle(void *arg, esp_event_base_t event_base,
                                     int32_t event_id, void *event_data);
         static void RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *data);
-        static void SendTask(void *arg);
+
+        [[noreturn]] static void SendTask(void *arg);
 
     public:
         WiFiMesh() = default;
@@ -62,7 +64,7 @@ namespace HAL {
         void BindingCallback(callback_t cb, void *arg);
         void BindingCallback(callback_t cb, uint32_t event, void *arg);
         void AttachEvent(callback_t cb, uint32_t event);
-        void Publish(HAL::MQTT::msg_t msg);
+        void Publish(void *data, size_t len);
     };
 }
 
