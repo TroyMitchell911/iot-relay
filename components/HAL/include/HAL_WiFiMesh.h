@@ -37,6 +37,17 @@ namespace HAL {
             void *pthis;
         }s_callback_t;
         std::list<s_callback_t> callback;
+        TaskHandle_t mesh_send_task_handler;
+
+    private:
+        static void IPEventHandle(void *arg, esp_event_base_t event_base,
+                                   int32_t event_id, void *event_data);
+        static void MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *arg);
+        static void MeshEventHandle(void *arg, esp_event_base_t event_base,
+                                    int32_t event_id, void *event_data);
+        static void RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *data);
+        static void SendTask(void *arg);
+
     public:
         WiFiMesh() = default;
         ~WiFiMesh() = default;

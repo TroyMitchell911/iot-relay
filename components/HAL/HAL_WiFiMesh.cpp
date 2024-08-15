@@ -16,13 +16,161 @@ static esp_netif_t *netif_sta = NULL;
 static bool is_mesh_connected = false;
 static HAL::MQTT* mqtt = nullptr;
 
-typedef struct {
-    HAL::WiFiMesh::callback_t callback;
-    uint32_t event_mask;
-    void *arg;
-}s_callback_t;
+void HAL::WiFiMesh::Start(HAL::WiFiMesh::wifi_mesh_cfg_t *config) {
+    xTaskCreate(HAL::WiFiMesh::SendTask,
+                "mesh send",
+                4096,
+                nullptr,
+                0,
+                &this->mesh_send_task_handler);
 
-static void run_callback(void *arg, HAL::WiFiMesh::event_t event, void *data) {
+
+    /*  create network interfaces for mesh (only station instance saved for further manipulation, soft AP instance ignored */
+    ESP_ERROR_CHECK(esp_netif_create_default_wifi_mesh_netifs(&netif_sta, nullptr));
+    /*  wifi initialization */
+    wifi_init_config_t wifi_config = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&wifi_config));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT,
+                                               IP_EVENT_STA_GOT_IP,
+                                               &HAL::WiFiMesh::IPEventHandle,
+                                               (void*)&this->callback));
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    /*  mesh initialization */
+    ESP_ERROR_CHECK(esp_mesh_init());
+    ESP_ERROR_CHECK(esp_event_handler_register(MESH_EVENT,
+                                               ESP_EVENT_ANY_ID,
+                                               &HAL::WiFiMesh::MeshEventHandle,
+                                               (void*)&this->callback));
+    /*  set mesh topology */
+    ESP_ERROR_CHECK(esp_mesh_set_topology(esp_mesh_topology_t(CONFIG_MESH_TOPOLOGY)));
+    /*  set mesh max layer according to the topology */
+    ESP_ERROR_CHECK(esp_mesh_set_max_layer(config->max_layer));
+    ESP_ERROR_CHECK(esp_mesh_set_vote_percentage(1));
+    ESP_ERROR_CHECK(esp_mesh_set_xon_qsize(128));
+
+#if CONFIG_MESH_ENABLE_PS
+    /* Enable mesh PS function */
+    ESP_ERROR_CHECK(esp_mesh_enable_ps());
+    /* better to increase the associate expired time, if a small duty cycle is set. */
+    ESP_ERROR_CHECK(esp_mesh_set_ap_assoc_expire(60));
+    /* better to increase the announce interval to avoid too much management traffic, if a small duty cycle is set. */
+    ESP_ERROR_CHECK(esp_mesh_set_announce_interval(600, 3300));
+#else
+    /* Disable mesh PS function */
+    ESP_ERROR_CHECK(esp_mesh_disable_ps());
+    ESP_ERROR_CHECK(esp_mesh_set_ap_assoc_expire(10));
+#endif
+
+    mesh_cfg_t cfg = MESH_INIT_CONFIG_DEFAULT();
+    /* mesh ID */
+    memcpy((uint8_t *) &cfg.mesh_id, config->mesh_id, 6);
+    /* router */
+    cfg.channel = config->mesh_channel;
+    cfg.router.ssid_len = strlen(config->router_ssid);
+    memcpy((uint8_t *) &cfg.router.ssid, config->router_ssid, cfg.router.ssid_len);
+    memcpy((uint8_t *) &cfg.router.password, config->router_pwd,
+           strlen(config->router_pwd));
+    /* mesh softAP */
+    ESP_ERROR_CHECK(esp_mesh_set_ap_authmode(wifi_auth_mode_t(CONFIG_MESH_AP_AUTHMODE)));
+    cfg.mesh_ap.max_connection = config->max_connections;
+    cfg.mesh_ap.nonmesh_max_connection = CONFIG_MESH_NON_MESH_AP_CONNECTIONS;
+    memcpy((uint8_t *) &cfg.mesh_ap.password, config->mesh_ap_pwd,
+           strlen(config->mesh_ap_pwd));
+    ESP_ERROR_CHECK(esp_mesh_set_config(&cfg));
+    esp_mesh_set_self_organized(true, true);
+    /* mesh start */
+    ESP_ERROR_CHECK(esp_mesh_start());
+
+#ifdef CONFIG_MESH_ENABLE_PS
+    /* set the device active duty cycle. (default:10, MESH_PS_DEVICE_DUTY_REQUEST) */
+    ESP_ERROR_CHECK(esp_mesh_set_active_duty_cycle(CONFIG_MESH_PS_DEV_DUTY, CONFIG_MESH_PS_DEV_DUTY_TYPE));
+    /* set the network active duty cycle. (default:10, -1, MESH_PS_NETWORK_DUTY_APPLIED_ENTIRE) */
+    ESP_ERROR_CHECK(esp_mesh_set_network_duty_cycle(CONFIG_MESH_PS_NWK_DUTY, CONFIG_MESH_PS_NWK_DUTY_DURATION, CONFIG_MESH_PS_NWK_DUTY_RULE));
+#endif
+}
+
+HAL::WiFiMesh &HAL::WiFiMesh::GetInstance() {
+    static HAL::WiFiMesh wifi_mesh{};
+
+    return wifi_mesh;
+}
+
+void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, void *arg) {
+    this->BindingCallback(cb, uint32_t(EVENT_GOT_IP), arg);
+}
+
+void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, uint32_t event, void *arg) {
+    if(!cb)
+        return;
+
+    if(event >= HAL::WiFiMesh::EVENT_MAX)
+        return;
+
+    for (auto & it : this->callback) {
+        if(it.callback == cb) {
+            return;
+        }
+    }
+
+    s_callback_t s_callback = {.callback = cb, .event_mask = event, .arg = arg, .pthis = (void*)this};
+
+    this->callback.push_back(s_callback);
+}
+
+void HAL::WiFiMesh::AttachEvent(HAL::WiFiMesh::callback_t cb, uint32_t event) {
+    if(!cb)
+        return;
+    if(event >= HAL::WiFiMesh::EVENT_MAX)
+        return;
+
+    for (auto & it : this->callback) {
+        if(it.callback == cb) {
+            it.event_mask |= event;
+            return;
+        }
+    }
+}
+
+void HAL::WiFiMesh::Publish(HAL::MQTT::msg_t msg) {
+    if(esp_mesh_is_root()) {
+        /* mqtt send */
+        if(mqtt)
+            mqtt->Publish(msg);
+    } else {
+        /* send to root and root send to mqtt */
+        if(is_mesh_connected) {
+
+        }
+    }
+}
+
+void HAL::WiFiMesh::SetMQTT(HAL::MQTT *mqtt_client) {
+    if(mqtt)
+        return;
+
+    if(!esp_mesh_is_root())
+        return;
+
+    mqtt = mqtt_client;
+    mqtt->BindingCallback(HAL::WiFiMesh::MQTTEventHandle, HAL::MQTT::EVENT_DATA, &this->callback);
+}
+
+HAL::MQTT &HAL::WiFiMesh::GetMQTT() {
+    return *mqtt;
+}
+
+void HAL::WiFiMesh::MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *arg) {
+    if(event == HAL::MQTT::EVENT_DATA) {
+        RunCallback(arg, HAL::WiFiMesh::EVENT_DATA, data);
+
+        /* do broadcast */
+
+    }
+}
+
+void HAL::WiFiMesh::RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *data) {
     auto lst = (std::list<s_callback_t>*)arg;
     for (auto & it : *lst) {
         if(it.event_mask & event) {
@@ -31,17 +179,18 @@ static void run_callback(void *arg, HAL::WiFiMesh::event_t event, void *data) {
     }
 }
 
-static void mqtt_event_handler(HAL::MQTT::event_t event, void *data, void *arg) {
-    if(event == HAL::MQTT::EVENT_DATA) {
-        run_callback(arg, HAL::WiFiMesh::EVENT_DATA, data);
+void HAL::WiFiMesh::IPEventHandle(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+    auto *callback = (s_callback_t*)arg;
 
-        /* do broadcast */
+    auto *event = (ip_event_got_ip_t *) event_data;
+    ESP_LOGI(TAG, "<IP_EVENT_STA_GOT_IP>IP:" IPSTR, IP2STR(&event->ip_info.ip));
 
-    }
+    printf("%lx\n", callback->event_mask);
+    RunCallback(callback, HAL::WiFiMesh::EVENT_GOT_IP, &event->ip_info.ip);
 }
 
-void mesh_event_handler(void *arg, esp_event_base_t event_base,
-                        int32_t event_id, void *event_data)
+void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
+                                    int32_t event_id, void *event_data)
 {
     mesh_addr_t id{};
     static uint16_t last_layer = 0;
@@ -235,145 +384,9 @@ void mesh_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-void ip_event_handler(void *arg, esp_event_base_t event_base,
-                      int32_t event_id, void *event_data)
-{
-    auto *callback = (s_callback_t*)arg;
-
-    auto *event = (ip_event_got_ip_t *) event_data;
-    ESP_LOGI(TAG, "<IP_EVENT_STA_GOT_IP>IP:" IPSTR, IP2STR(&event->ip_info.ip));
-
-    printf("%lx\n", callback->event_mask);
-    run_callback(callback, HAL::WiFiMesh::EVENT_GOT_IP, &event->ip_info.ip);
-}
-
-void HAL::WiFiMesh::Start(HAL::WiFiMesh::wifi_mesh_cfg_t *config) {
-    /*  create network interfaces for mesh (only station instance saved for further manipulation, soft AP instance ignored */
-    ESP_ERROR_CHECK(esp_netif_create_default_wifi_mesh_netifs(&netif_sta, nullptr));
-    /*  wifi initialization */
-    wifi_init_config_t wifi_config = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&wifi_config));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &ip_event_handler, (void*)&this->callback));
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-    /*  mesh initialization */
-    ESP_ERROR_CHECK(esp_mesh_init());
-    ESP_ERROR_CHECK(esp_event_handler_register(MESH_EVENT, ESP_EVENT_ANY_ID, &mesh_event_handler, (void*)&this->callback));
-    /*  set mesh topology */
-    ESP_ERROR_CHECK(esp_mesh_set_topology(esp_mesh_topology_t(CONFIG_MESH_TOPOLOGY)));
-    /*  set mesh max layer according to the topology */
-    ESP_ERROR_CHECK(esp_mesh_set_max_layer(config->max_layer));
-    ESP_ERROR_CHECK(esp_mesh_set_vote_percentage(1));
-    ESP_ERROR_CHECK(esp_mesh_set_xon_qsize(128));
-
-#if CONFIG_MESH_ENABLE_PS
-    /* Enable mesh PS function */
-    ESP_ERROR_CHECK(esp_mesh_enable_ps());
-    /* better to increase the associate expired time, if a small duty cycle is set. */
-    ESP_ERROR_CHECK(esp_mesh_set_ap_assoc_expire(60));
-    /* better to increase the announce interval to avoid too much management traffic, if a small duty cycle is set. */
-    ESP_ERROR_CHECK(esp_mesh_set_announce_interval(600, 3300));
-#else
-    /* Disable mesh PS function */
-    ESP_ERROR_CHECK(esp_mesh_disable_ps());
-    ESP_ERROR_CHECK(esp_mesh_set_ap_assoc_expire(10));
-#endif
-
-    mesh_cfg_t cfg = MESH_INIT_CONFIG_DEFAULT();
-    /* mesh ID */
-    memcpy((uint8_t *) &cfg.mesh_id, config->mesh_id, 6);
-    /* router */
-    cfg.channel = config->mesh_channel;
-    cfg.router.ssid_len = strlen(config->router_ssid);
-    memcpy((uint8_t *) &cfg.router.ssid, config->router_ssid, cfg.router.ssid_len);
-    memcpy((uint8_t *) &cfg.router.password, config->router_pwd,
-           strlen(config->router_pwd));
-    /* mesh softAP */
-    ESP_ERROR_CHECK(esp_mesh_set_ap_authmode(wifi_auth_mode_t(CONFIG_MESH_AP_AUTHMODE)));
-    cfg.mesh_ap.max_connection = config->max_connections;
-    cfg.mesh_ap.nonmesh_max_connection = CONFIG_MESH_NON_MESH_AP_CONNECTIONS;
-    memcpy((uint8_t *) &cfg.mesh_ap.password, config->mesh_ap_pwd,
-           strlen(config->mesh_ap_pwd));
-    ESP_ERROR_CHECK(esp_mesh_set_config(&cfg));
-    esp_mesh_set_self_organized(true, true);
-    /* mesh start */
-    ESP_ERROR_CHECK(esp_mesh_start());
-
-#ifdef CONFIG_MESH_ENABLE_PS
-    /* set the device active duty cycle. (default:10, MESH_PS_DEVICE_DUTY_REQUEST) */
-    ESP_ERROR_CHECK(esp_mesh_set_active_duty_cycle(CONFIG_MESH_PS_DEV_DUTY, CONFIG_MESH_PS_DEV_DUTY_TYPE));
-    /* set the network active duty cycle. (default:10, -1, MESH_PS_NETWORK_DUTY_APPLIED_ENTIRE) */
-    ESP_ERROR_CHECK(esp_mesh_set_network_duty_cycle(CONFIG_MESH_PS_NWK_DUTY, CONFIG_MESH_PS_NWK_DUTY_DURATION, CONFIG_MESH_PS_NWK_DUTY_RULE));
-#endif
-}
-
-HAL::WiFiMesh &HAL::WiFiMesh::GetInstance() {
-    static HAL::WiFiMesh wifi_mesh{};
-
-    return wifi_mesh;
-}
-
-void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, void *arg) {
-    this->BindingCallback(cb, uint32_t(EVENT_GOT_IP), arg);
-}
-
-void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, uint32_t event, void *arg) {
-    if(!cb)
-        return;
-
-    if(event >= HAL::WiFiMesh::EVENT_MAX)
-        return;
-
-    for (auto & it : this->callback) {
-        if(it.callback == cb) {
-            return;
-        }
+void HAL::WiFiMesh::SendTask(void *arg) {
+    for(;;) {
+        printf("HAL::WiFiMesh::SendTask\n");
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
-
-    s_callback_t s_callback = {.callback = cb, .event_mask = event, .arg = arg, .pthis = (void*)this};
-
-    this->callback.push_back(s_callback);
-}
-
-void HAL::WiFiMesh::AttachEvent(HAL::WiFiMesh::callback_t cb, uint32_t event) {
-    if(!cb)
-        return;
-    if(event >= HAL::WiFiMesh::EVENT_MAX)
-        return;
-
-    for (auto & it : this->callback) {
-        if(it.callback == cb) {
-            it.event_mask |= event;
-            return;
-        }
-    }
-}
-
-void HAL::WiFiMesh::Publish(HAL::MQTT::msg_t msg) {
-    if(esp_mesh_is_root()) {
-        /* mqtt send */
-        if(mqtt)
-            mqtt->Publish(msg);
-    } else {
-        /* send to root and root send to mqtt */
-        if(is_mesh_connected) {
-
-        }
-    }
-}
-
-void HAL::WiFiMesh::SetMQTT(HAL::MQTT *mqtt_client) {
-    if(mqtt)
-        return;
-
-    if(!esp_mesh_is_root())
-        return;
-
-    mqtt = mqtt_client;
-    mqtt->BindingCallback(mqtt_event_handler, HAL::MQTT::EVENT_DATA, &this->callback);
-}
-
-HAL::MQTT &HAL::WiFiMesh::GetMQTT() {
-    return *mqtt;
 }
