@@ -16,10 +16,11 @@ HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) : MQTT(u
 }
 
 HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca) {
+    this->mqtt_msg_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(HAL::MQTT::in_msg_t));
     xTaskCreate(HAL::MQTT::SendTask,
                 "mesh send",
                 4096,
-                nullptr,
+                (void*)this->mqtt_msg_queue,
                 0,
                 &this->mqtt_send_task_handler);
 
@@ -75,18 +76,27 @@ void HAL::MQTT::AttachEvent(HAL::MQTT::callback_t cb, uint32_t id) {
     }
 }
 
-int HAL::MQTT::Publish(HAL::MQTT::msg_t &msg) {
-    return esp_mqtt_client_publish(this->mqtt_client,
-                                   msg.topic,
-                                   msg.data,
-                                   int(msg.len == 0 ? strlen(msg.data) : msg.len),
-                                   msg.qos,
-                                   msg.retain);
+void HAL::MQTT::Publish(HAL::MQTT::msg_t &msg) {
+    HAL::MQTT::in_msg_t in_msg;
+    memcpy(&in_msg, &msg, sizeof(msg_t));
+    in_msg.mqtt = this->mqtt_client;
+    xQueueSend(this->mqtt_msg_queue, &in_msg, MQTT_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
 }
 
 void HAL::MQTT::SendTask(void *arg) {
+    auto msgs = (QueueHandle_t)arg;
+    HAL::MQTT::in_msg_t in_msg;
+    HAL::MQTT::msg_t msg;
     for(;;) {
-        printf("HAL::MQTT::SendTask\n");
+        if (xQueueReceive(msgs, (void*)&in_msg, portMAX_DELAY) == pdTRUE) {
+            msg = in_msg.msg;
+            esp_mqtt_client_publish(in_msg.mqtt,
+                                    msg.topic,
+                                    msg.data,
+                                    int(msg.len == 0 ? strlen(msg.data) : msg.len),
+                                    msg.qos,
+                                    msg.retain);
+        }
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }

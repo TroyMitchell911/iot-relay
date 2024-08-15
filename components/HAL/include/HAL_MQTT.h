@@ -10,7 +10,8 @@
 
 namespace HAL {
     class MQTT {
-
+#define MQTT_QUEUE_MSG_MAX          20
+#define MQTT_QUEUE_WAIT_TIME_MS    500
     public:
         typedef enum {
             EVENT_CONNECTED = 0x01,
@@ -37,6 +38,10 @@ namespace HAL {
 
     private:
         typedef struct {
+            msg_t msg;
+            esp_mqtt_client_handle_t mqtt;
+        }in_msg_t;
+        typedef struct {
             callback_t callback;
             uint32_t event_mask;
             void *arg;
@@ -47,6 +52,7 @@ namespace HAL {
         esp_mqtt_client_handle_t mqtt_client;
         std::list<s_callback_t> callback;
         TaskHandle_t mqtt_send_task_handler;
+        QueueHandle_t mqtt_msg_queue;
 
     private:
         static void EventHandle(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
@@ -61,7 +67,7 @@ namespace HAL {
         void AttachEvent(HAL::MQTT::callback_t cb, uint32_t id);
         void Subscribe(const char *topic, uint8_t qos);
         void Unsubscirbe(const char *topic);
-        int Publish(msg_t &msg);
+        void Publish(msg_t &msg);
         ~MQTT();
     };
 }
