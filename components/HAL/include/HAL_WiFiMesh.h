@@ -5,6 +5,8 @@
 #ifndef RELAY_HAL_WIFIMESH_H
 #define RELAY_HAL_WIFIMESH_H
 
+#include "HAL_MQTT.h"
+
 namespace HAL {
     class WiFiMesh{
     public:
@@ -33,19 +35,22 @@ namespace HAL {
             void *arg;
             void *pthis;
         }s_callback_t;
-        s_callback_t callback;
-
+        std::list<s_callback_t> callback;
     public:
         WiFiMesh() = default;
         ~WiFiMesh() = default;
         WiFiMesh(const WiFiMesh &wifi_mesh) = delete;
         const WiFiMesh &operator=(const WiFiMesh &wifi_mesh) = delete;
+
     public:
         static HAL::WiFiMesh &GetInstance();
         void Start(wifi_mesh_cfg_t *config);
-        void BindingEvent(callback_t cb, void *arg);
-        void BindingEvent(callback_t cb, void *arg, int event);
-        void AttachEvent(callback_t cb, int event);
+        void SetMQTT(HAL::MQTT* mqtt_client);
+        HAL::MQTT &GetMQTT();
+        void BindingCallback(callback_t cb, void *arg);
+        void BindingCallback(callback_t cb, uint32_t event, void *arg);
+        void AttachEvent(callback_t cb, uint32_t event);
+        void Publish(HAL::MQTT::msg_t msg);
     };
 }
 

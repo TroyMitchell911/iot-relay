@@ -14,12 +14,28 @@ static int mesh_layer = -1;
 static mesh_addr_t mesh_parent_addr;
 static esp_netif_t *netif_sta = NULL;
 static bool is_mesh_connected = false;
+static HAL::MQTT* mqtt = nullptr;
 
 typedef struct {
     HAL::WiFiMesh::callback_t callback;
     uint32_t event_mask;
     void *arg;
 }s_callback_t;
+
+static void run_callback(void *arg, HAL::WiFiMesh::event_t event, void *data) {
+    auto lst = (std::list<s_callback_t>*)arg;
+    for (auto & it : *lst) {
+        if(it.event_mask & event) {
+            it.callback(event, data, it.arg);
+        }
+    }
+}
+
+static void mqtt_event_handler(HAL::MQTT::event_t event, void *data, void *arg) {
+    if(event == HAL::MQTT::EVENT_DATA) {
+        /* broadcast */
+    }
+}
 
 void mesh_event_handler(void *arg, esp_event_base_t event_base,
                         int32_t event_id, void *event_data)
@@ -225,11 +241,7 @@ void ip_event_handler(void *arg, esp_event_base_t event_base,
     ESP_LOGI(TAG, "<IP_EVENT_STA_GOT_IP>IP:" IPSTR, IP2STR(&event->ip_info.ip));
 
     printf("%lx\n", callback->event_mask);
-    if(callback->event_mask & HAL::WiFiMesh::EVENT_GOT_IP) {
-
-        callback->callback(HAL::WiFiMesh::EVENT_GOT_IP, &event->ip_info.ip, callback->arg);
-    }
-
+    run_callback(callback, HAL::WiFiMesh::EVENT_GOT_IP, &event->ip_info.ip);
 }
 
 void HAL::WiFiMesh::Start(HAL::WiFiMesh::wifi_mesh_cfg_t *config) {
@@ -299,27 +311,66 @@ HAL::WiFiMesh &HAL::WiFiMesh::GetInstance() {
     return wifi_mesh;
 }
 
-void HAL::WiFiMesh::BindingEvent(HAL::WiFiMesh::callback_t cb, void *arg) {
-    this->BindingEvent(cb, arg, EVENT_GOT_IP);
+void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, void *arg) {
+    this->BindingCallback(cb, uint32_t(EVENT_GOT_IP), arg);
 }
 
-void HAL::WiFiMesh::BindingEvent(HAL::WiFiMesh::callback_t cb, void *arg, int event) {
+void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, uint32_t event, void *arg) {
+    if(!cb)
+        return;
+
+    if(event >= HAL::WiFiMesh::EVENT_MAX)
+        return;
+
+    for (auto & it : this->callback) {
+        if(it.callback == cb) {
+            return;
+        }
+    }
+
+    s_callback_t s_callback = {.callback = cb, .event_mask = event, .arg = arg, .pthis = (void*)this};
+
+    this->callback.push_back(s_callback);
+}
+
+void HAL::WiFiMesh::AttachEvent(HAL::WiFiMesh::callback_t cb, uint32_t event) {
     if(!cb)
         return;
     if(event >= HAL::WiFiMesh::EVENT_MAX)
         return;
 
-    this->callback.callback = cb;
-    this->callback.arg = arg;
-    this->callback.event_mask = HAL::WiFiMesh::event_t(event);
-    this->callback.pthis = (void*)this;
+    for (auto & it : this->callback) {
+        if(it.callback == cb) {
+            it.event_mask |= event;
+            return;
+        }
+    }
 }
 
-void HAL::WiFiMesh::AttachEvent(HAL::WiFiMesh::callback_t cb, int event) {
-    if(!cb)
-        return;
-    if(event >= HAL::WiFiMesh::EVENT_MAX)
+void HAL::WiFiMesh::Publish(HAL::MQTT::msg_t msg) {
+    if(esp_mesh_is_root()) {
+        /* mqtt send */
+        if(mqtt)
+            mqtt->Publish(msg);
+    } else {
+        /* send to root and root send to mqtt */
+        if(is_mesh_connected) {
+
+        }
+    }
+}
+
+void HAL::WiFiMesh::SetMQTT(HAL::MQTT *mqtt_client) {
+    if(mqtt)
         return;
 
-    this->callback.event_mask |= HAL::WiFiMesh::event_t(event);
+    if(!esp_mesh_is_root())
+        return;
+
+    mqtt = mqtt_client;
+    mqtt->BindingCallback(mqtt_event_handler, HAL::MQTT::EVENT_DATA, nullptr);
+}
+
+HAL::MQTT &HAL::WiFiMesh::GetMQTT() {
+    return *mqtt;
 }
