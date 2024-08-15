@@ -14,8 +14,8 @@ static void update_status(HAL::MQTT *mqtt, char *status_topic, bool status) {
     mqtt->Publish(msg);
 }
 
-App::Switch::Switch(HAL::MQTT *mqtt, const char *where, App::HomeAssistant::entity_type_t type, const char *name)
-        : HomeAssistant(mqtt, where, type, name) {
+App::Switch::Switch(HAL::MQTT *mqtt, const char *where, const char *name)
+        : HomeAssistant(mqtt, where, App::HomeAssistant::SWITCH, name) {
     this->mqtt->BindingCallback(App::Switch::Process, HAL::MQTT::EVENT_DATA, (void*)this);
     this->GetTopic(this->status_topic, "status");
 

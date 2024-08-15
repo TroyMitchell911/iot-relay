@@ -16,7 +16,7 @@ namespace App {
     private:
         static void Process(HAL::MQTT::event_t event, void *data, void *arg);
     public:
-        Switch(HAL::MQTT *mqtt, const char *where, entity_type_t type, const char *name);
+        Switch(HAL::MQTT *mqtt, const char *where, const char *name);
         void Act();
     };
 }
