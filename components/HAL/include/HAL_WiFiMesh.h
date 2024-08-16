@@ -19,7 +19,7 @@ namespace HAL {
 
             const char *router_ssid;
             const char *router_pwd;
-        }wifi_mesh_cfg_t;
+        }cfg_t;
 
         typedef enum {
             EVENT_GOT_IP = 0x01,
@@ -27,6 +27,17 @@ namespace HAL {
             EVENT_ROOT_WILL_CHANGE = EVENT_DATA << 1,
             EVENT_MAX = EVENT_ROOT_WILL_CHANGE << 1,
         }event_t;
+
+        typedef enum {
+            MSG_MQTT = 0,
+            MSG_TYPE_MAX,
+        }msg_type_t;
+
+        typedef struct {
+            void *data;
+            size_t len;
+            msg_type_t type;
+        }msg_t;
 
         typedef void (*callback_t)(event_t event, void *data, void *arg);
 
@@ -61,13 +72,13 @@ namespace HAL {
 
     public:
         static HAL::WiFiMesh &GetInstance();
-        void Start(wifi_mesh_cfg_t *config);
+        void Start(cfg_t *config);
         void SetMQTT(HAL::MQTT* mqtt_client);
         HAL::MQTT &GetMQTT();
         void BindingCallback(callback_t cb, void *arg);
         void BindingCallback(callback_t cb, uint32_t event, void *arg);
         void AttachEvent(callback_t cb, uint32_t event);
-        void Publish(void *data, size_t len);
+        void Publish(msg_t &msg);
     };
 }
 

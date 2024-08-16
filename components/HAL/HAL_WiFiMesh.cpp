@@ -16,7 +16,7 @@ static esp_netif_t *netif_sta = nullptr;
 static bool is_mesh_connected = false;
 static HAL::MQTT* mqtt = nullptr;
 
-void HAL::WiFiMesh::Start(HAL::WiFiMesh::wifi_mesh_cfg_t *config) {
+void HAL::WiFiMesh::Start(HAL::WiFiMesh::cfg_t *config) {
     xTaskCreate(HAL::WiFiMesh::SendTask,
                 "mesh send",
                 4096,
@@ -391,12 +391,13 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
     }
 }
 
-void HAL::WiFiMesh::Publish(void *data, size_t len) {
+void HAL::WiFiMesh::Publish(HAL::WiFiMesh::msg_t &msg) {
     if(esp_mesh_is_root()) {
+        ESP_LOGI(TAG, "mqtt: %p, msg.type: %d", mqtt, msg.type);
         /* mqtt send */
-        if(mqtt && len == sizeof(HAL::MQTT::msg_t)) {
-            auto *msg = (HAL::MQTT::msg_t*)data;
-            mqtt->Publish(*msg);
+        if(msg.type == MSG_MQTT) {
+            if(mqtt)
+                mqtt->Publish(*(HAL::MQTT::msg_t*)msg.data);
             return;
         }
     }
@@ -407,23 +408,32 @@ void HAL::WiFiMesh::Publish(void *data, size_t len) {
     }
 }
 
+/* TODO: TEST */
 void HAL::WiFiMesh::RecvTask(void *arg) {
     mesh_addr_t from;
     mesh_data_t data;
     int flag = 0;
     esp_err_t err;
+    auto *ha = (HAL::WiFiMesh*)arg;
 
     for(;;) {
         err = esp_mesh_recv(&from, &data, portMAX_DELAY, &flag, nullptr, 0);
-        if(err != ESP_OK || !data.size)
+        if(err != ESP_OK || data.size != sizeof(msg_t))
             continue;
 
+        auto *msg = (msg_t*)data.data;
         /* process */
-        if(data.size == sizeof(HAL::MQTT::msg_t)) {
-
-        }
-        else {
+        if (msg->type == MSG_MQTT) {
+            if(esp_mesh_is_root()) {
+                /* Publish */
+                ha->Publish(*msg);
+            } else {
+                /* callback */
+                HAL::WiFiMesh::RunCallback((void*)&ha->callback, EVENT_DATA, (void*)msg);
+            }
+        } else {
             /* callback */
+            HAL::WiFiMesh::RunCallback((void*)&ha->callback, EVENT_DATA, (void*)msg);
         }
     }
 }
