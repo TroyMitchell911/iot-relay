@@ -38,10 +38,6 @@ namespace HAL {
 
     private:
         typedef struct {
-            msg_t msg;
-            esp_mqtt_client_handle_t mqtt;
-        }in_msg_t;
-        typedef struct {
             callback_t callback;
             uint32_t event_mask;
             void *arg;
