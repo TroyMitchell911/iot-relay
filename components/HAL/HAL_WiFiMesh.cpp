@@ -424,13 +424,8 @@ void HAL::WiFiMesh::RecvTask(void *arg) {
         auto *msg = (msg_t*)data.data;
         /* process */
         if (msg->type == MSG_MQTT) {
-            if(esp_mesh_is_root()) {
-                /* Publish */
-                ha->Publish(*msg);
-            } else {
-                /* callback */
-                HAL::WiFiMesh::RunCallback((void*)&ha->callback, EVENT_DATA, (void*)msg);
-            }
+            /* Publish */
+            ha->Publish(*msg);
         } else {
             /* callback */
             HAL::WiFiMesh::RunCallback((void*)&ha->callback, EVENT_DATA, (void*)msg);
