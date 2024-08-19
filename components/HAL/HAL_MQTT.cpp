@@ -19,7 +19,7 @@ HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const ch
     this->mqtt_msg_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(HAL::MQTT::msg_t));
     xTaskCreate(HAL::MQTT::SendTask,
                 "mesh send",
-                4096,
+                8192,
                 (void*)this,
                 0,
                 &this->mqtt_send_task_handler);
@@ -28,6 +28,7 @@ HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const ch
     this->mqtt_cfg.credentials.authentication.password = pwd;
     this->mqtt_cfg.broker.address.uri = uri;
     this->mqtt_cfg.broker.verification.certificate = (const char*) ca;
+    this->mqtt_cfg.task.stack_size = 8192;
 
     this->mqtt_client = esp_mqtt_client_init(&this->mqtt_cfg);
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
@@ -68,37 +69,21 @@ void HAL::MQTT::AttachEvent(HAL::MQTT::callback_t cb, uint32_t id) {
     if(id >= HAL::MQTT::EVENT_MAX)
         return;
 
-    for (auto it = this->callback.begin(); it != this->callback.end(); it++) {
-        if(it->callback == cb) {
-            it->event_mask |= id;
+    for (auto & it : this->callback) {
+        if(it.callback == cb) {
+            it.event_mask |= id;
             return;
         }
     }
 }
 
 void HAL::MQTT::Publish(HAL::MQTT::msg_t &msg) {
-    msg_t send_msg = msg;
-    printf("%s\n%s\n", msg.data, msg.topic);
-    send_msg.len = int(msg.len == 0 ? strlen(msg.data): msg.len);
-    send_msg.topic_len = int(msg.topic_len == 0 ? strlen(msg.topic): msg.topic_len);
-
-    send_msg.data = (char*)malloc(send_msg.len + 1);
-    if(!send_msg.data)
-        return;
-    memset(send_msg.data, 0, send_msg.len + 1);
-    strcpy(send_msg.data, msg.data);
-
-    send_msg.topic = (char*)malloc(send_msg.topic_len + 1);
-    if(!send_msg.topic) {
-        free(send_msg.data);
-        return;
-    }
-    memset(send_msg.topic, 0, send_msg.topic_len + 1);
-    strcpy(send_msg.topic, msg.topic);
-
-    ESP_LOGI(TAG, "send_msg.data: %s", send_msg.data);
-    ESP_LOGI(TAG, "send_msg.topic: %s", send_msg.topic);
-    xQueueSend(this->mqtt_msg_queue, &send_msg, MQTT_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
+    ESP_LOGD(TAG, "msg.data: %s", msg.data);
+    ESP_LOGD(TAG, "msg.topic: %s", msg.topic);
+    ESP_LOGD(TAG, "msg.len: %d", msg.len);
+    ESP_LOGD(TAG, "msg.qos: %d", msg.qos);
+    ESP_LOGD(TAG, "msg.retain: %d", msg.retain);
+    xQueueSend(this->mqtt_msg_queue, &msg, MQTT_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
 }
 
 void HAL::MQTT::SendTask(void *arg) {
@@ -113,11 +98,9 @@ void HAL::MQTT::SendTask(void *arg) {
                                     int(msg.len == 0 ? strlen(msg.data) : msg.len),
                                     msg.qos,
                                     msg.retain);
-            free(msg.data);
-            free(msg.topic);
         }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
-    vTaskDelay(100 / portTICK_PERIOD_MS);
 }
 
 void HAL::MQTT::RunCallback(void *arg, HAL::MQTT::event_t event, void *data) {
@@ -155,9 +138,9 @@ void HAL::MQTT::EventHandle(void *handler_args, esp_event_base_t base, int32_t e
             ESP_LOGI(TAG, "TOPIC=%.*s", event->topic_len, event->topic);
             ESP_LOGI(TAG, "DATA=%.*s", event->data_len, event->data);
             HAL::MQTT::msg_t msg{};
-            msg.data = event->data;
+            memcpy(msg.data, event->data, event->data_len);
+            memcpy(msg.topic, event->topic, event->topic_len);
             msg.len = event->data_len;
-            msg.topic = event->topic;
             msg.topic_len = event->topic_len;
             RunCallback(handler_args, HAL::MQTT::EVENT_DATA, &msg);
             break;
@@ -179,4 +162,22 @@ void HAL::MQTT::EventHandle(void *handler_args, esp_event_base_t base, int32_t e
             ESP_LOGW(TAG, "Other event id:%d", event->event_id);
             break;
     }
+}
+
+void HAL::MQTT::Publish(char *topic, char *data, int len) {
+    this->Publish(topic, data, len, 0);
+}
+
+void HAL::MQTT::Publish(char *topic, char *data, int len, int qos) {
+    this->Publish(topic, data, len, qos, 0);
+}
+
+void HAL::MQTT::Publish(char *topic, char *data, int len, int qos, int retain) {
+    msg_t msg{};
+    msg.len = len;
+    msg.qos = qos;
+    msg.retain = retain;
+    strcpy(msg.topic, topic);
+    strcpy(msg.data, data);
+    this->Publish(msg);
 }

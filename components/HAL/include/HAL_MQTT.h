@@ -10,8 +10,9 @@
 
 namespace HAL {
     class MQTT {
-#define MQTT_QUEUE_MSG_MAX          20
+#define MQTT_QUEUE_MSG_MAX          10
 #define MQTT_QUEUE_WAIT_TIME_MS    500
+#define MQTT_TOPIC_MAX_NUM          64
     public:
         typedef enum {
             EVENT_CONNECTED = 0x01,
@@ -24,8 +25,8 @@ namespace HAL {
         }event_t;
 
         typedef struct {
-            char *topic;
-            char *data;
+            char topic[MQTT_TOPIC_MAX_NUM];
+            char data[512];
             int len;
             /* ↓ just sending use ↓ */
             int qos;
@@ -64,6 +65,9 @@ namespace HAL {
         void Subscribe(const char *topic, uint8_t qos);
         void Unsubscirbe(const char *topic);
         void Publish(msg_t &msg);
+        void Publish(char *topic, char *data, int len);
+        void Publish(char *topic, char *data, int len, int qos);
+        void Publish(char *topic, char *data, int len, int qos, int retain);
         ~MQTT();
     };
 }
