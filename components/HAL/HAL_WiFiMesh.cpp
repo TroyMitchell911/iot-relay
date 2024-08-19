@@ -2,34 +2,25 @@
 // Created by troy on 2024/8/14.
 //
 
-#include <esp_wifi.h>
-#include <esp_mesh.h>
-#include <esp_log.h>
-#include <esp_mac.h>
 #include "HAL_WiFiMesh.h"
 
 #define TAG "[HAL::WiFiMesh]"
 
-static int mesh_layer = -1;
-static mesh_addr_t mesh_parent_addr;
-static esp_netif_t *netif_sta = nullptr;
-static bool is_mesh_connected = false;
-static HAL::MQTT* mqtt = nullptr;
-
 void HAL::WiFiMesh::Start(HAL::WiFiMesh::cfg_t *config) {
     xTaskCreate(HAL::WiFiMesh::SendTask,
                 "mesh send",
-                4096,
-                nullptr,
+                8192,
+                this,
                 0,
                 &this->mesh_send_task_handler);
 
     xTaskCreate(HAL::WiFiMesh::RecvTask,
                 "mesh recv",
-                4096,
-                nullptr,
+                8192,
+                this,
                 0,
                 &this->mesh_recv_task_handler);
+    this->mesh_msg_queue = xQueueCreate(MESH_QUEUE_MSG_MAX, sizeof(mesh_data_t));
 
 
     /*  create network interfaces for mesh (only station instance saved for further manipulation, soft AP instance ignored */
@@ -49,7 +40,7 @@ void HAL::WiFiMesh::Start(HAL::WiFiMesh::cfg_t *config) {
     ESP_ERROR_CHECK(esp_event_handler_register(MESH_EVENT,
                                                ESP_EVENT_ANY_ID,
                                                &HAL::WiFiMesh::MeshEventHandle,
-                                               (void*)&this->callback));
+                                               (void*)this));
     /*  set mesh topology */
     ESP_ERROR_CHECK(esp_mesh_set_topology(esp_mesh_topology_t(CONFIG_MESH_TOPOLOGY)));
     /*  set mesh max layer according to the topology */
@@ -62,7 +53,7 @@ void HAL::WiFiMesh::Start(HAL::WiFiMesh::cfg_t *config) {
     ESP_ERROR_CHECK(esp_mesh_enable_ps());
     /* better to increase the associate expired time, if a small duty cycle is set. */
     ESP_ERROR_CHECK(esp_mesh_set_ap_assoc_expire(60));
-    /* better to increase the announce interval to avoid too much management traffic, if a small duty cycle is set. */
+    /* better to increase the announcement interval to avoid too much management traffic, if a small duty cycle is set. */
     ESP_ERROR_CHECK(esp_mesh_set_announce_interval(600, 3300));
 #else
     /* Disable mesh PS function */
@@ -105,7 +96,7 @@ HAL::WiFiMesh &HAL::WiFiMesh::GetInstance() {
 }
 
 void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, void *arg) {
-    this->BindingCallback(cb, uint32_t(EVENT_GOT_IP), arg);
+    this->BindingCallback(cb, uint32_t(EVENT_CONNECTED | EVENT_GOT_IP), arg);
 }
 
 void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, uint32_t event, void *arg) {
@@ -127,6 +118,9 @@ void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, uint32_t event
     s_callback_t s_callback = {.callback = cb, .event_mask = event, .arg = arg, .pthis = (void*)this};
 
     this->callback.push_back(s_callback);
+
+    ESP_LOGI(TAG, "binding callback: %d", this->is_mesh_connected);
+
 }
 
 void HAL::WiFiMesh::AttachEvent(HAL::WiFiMesh::callback_t cb, uint32_t event) {
@@ -154,20 +148,11 @@ void HAL::WiFiMesh::SetMQTT(HAL::MQTT *mqtt_client) {
         return;
 
     mqtt = mqtt_client;
-    mqtt->BindingCallback(HAL::WiFiMesh::MQTTEventHandle, HAL::MQTT::EVENT_DATA, &this->callback);
+    mqtt->BindingCallback(HAL::WiFiMesh::MQTTEventHandle, HAL::MQTT::EVENT_DATA, this);
 }
 
 HAL::MQTT &HAL::WiFiMesh::GetMQTT() {
     return *mqtt;
-}
-
-void HAL::WiFiMesh::MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *arg) {
-    if(event == HAL::MQTT::EVENT_DATA) {
-        RunCallback(arg, HAL::WiFiMesh::EVENT_DATA, data);
-
-        /* do broadcast */
-
-    }
 }
 
 void HAL::WiFiMesh::RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *data) {
@@ -176,6 +161,111 @@ void HAL::WiFiMesh::RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *d
         if(it.event_mask & event) {
             it.callback(event, data, it.arg);
         }
+    }
+}
+
+[[noreturn]] void HAL::WiFiMesh::SendTask(void *arg) {
+    auto wifi_mesh = (HAL::WiFiMesh*)arg;
+    mesh_data_t mesh_msg;
+    msg_t *msg;
+    for(;;) {
+        if(wifi_mesh->is_mesh_connected) {
+            if(xQueueReceive(wifi_mesh->mesh_msg_queue, &mesh_msg, portMAX_DELAY) == pdTRUE) {
+                /* Even the root node may be executed here, so we should judge carefully */
+                msg = (msg_t*)mesh_msg.data;
+                ESP_LOGI(TAG, "SendTask: %p size:%d", msg->mac ? msg->mac : nullptr, mesh_msg.size);
+
+                esp_err_t err = esp_mesh_send(msg->mac, &mesh_msg, MESH_DATA_P2P, nullptr, 0);
+                if (err) {
+                    ESP_LOGE(TAG,
+                             "heap:%" PRId32 "[err:0x%x, proto:%d, tos:%d]",
+                             esp_get_minimum_free_heap_size(),
+                             err, mesh_msg.proto, mesh_msg.tos);
+                }
+                free(msg);
+            }
+        } else {
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+        }
+    }
+}
+
+void HAL::WiFiMesh::Publish(HAL::WiFiMesh::msg_t &msg) {
+//    ESP_LOGI(TAG, "msg.type: %d msg.mac: %p", msg.type, msg.mac);
+    if(esp_mesh_is_root()) {
+        /* mqtt send */
+        ESP_LOGI(TAG, "msg.type: %d msg.mac: %p", msg.type, msg.mac);
+        if(msg.type == MSG_MQTT && msg.mac == nullptr) {
+            if(mqtt)
+                mqtt->Publish(*(HAL::MQTT::msg_t*)msg.data);
+            return;
+        }
+    }
+
+    ESP_LOGI(TAG, "mesh data");
+    auto *s_msg = (HAL::WiFiMesh::msg_t*)malloc(sizeof(msg_t));
+    memcpy(s_msg, &msg, sizeof(msg_t));
+    mesh_data_t mesh_msg;
+
+    mesh_msg.data = (uint8_t*)s_msg;
+    mesh_msg.size = sizeof(msg_t);
+    mesh_msg.proto = MESH_PROTO_BIN;
+    mesh_msg.tos = MESH_TOS_P2P;
+
+    xQueueSend(this->mesh_msg_queue, &mesh_msg, MESH_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
+
+}
+
+/* TODO: TEST */
+void HAL::WiFiMesh::RecvTask(void *arg) {
+    mesh_addr_t from;
+    mesh_data_t data;
+    msg_t msg;
+    int flag = 0;
+    esp_err_t err;
+    auto *wifi_mesh = (HAL::WiFiMesh*)arg;
+    data.data = (uint8_t*)&msg;
+    data.size = sizeof(msg_t);
+
+    for(;;) {
+        if(!wifi_mesh->is_mesh_connected) {
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+            continue;
+        }
+        err = esp_mesh_recv(&from, &data, portMAX_DELAY, &flag, nullptr, 0);
+        if(err != ESP_OK || data.size != sizeof(msg_t))
+            continue;
+
+        ESP_LOGD(TAG, "RecvTask: %d", msg.type);
+        switch(msg.type) {
+            case MSG_MQTT:
+                /* Publish */
+                wifi_mesh->Publish(msg);
+                break;
+            case MSG_UPLOAD_SELF_INFO:
+                ESP_LOGI(TAG, "received device info");
+                wifi_mesh->device_info_table.push_back(((self_info_t*)msg.data));
+                break;
+            default:
+                /* callback */
+                HAL::WiFiMesh::RunCallback((void*)&wifi_mesh->callback, EVENT_DATA, (void*)&msg);
+                break;
+        }
+    }
+}
+
+void HAL::WiFiMesh::MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *arg) {
+    auto* wifi_mesh = (WiFiMesh*)arg;
+    if(event == HAL::MQTT::EVENT_DATA) {
+        auto *r_msg = (HAL::MQTT::msg_t *) data;
+        for (auto & it : wifi_mesh->device_info_table) {
+            if (strncmp(r_msg->topic, it->unique_id, strlen(it->unique_id)) == 0) {
+                wifi_mesh->Publish(&r_msg, sizeof(MSG_MQTT), MSG_MQTT, &it->mac);
+                return;
+            }
+        }
+        /* It's a message for root node */
+        RunCallback(arg, HAL::WiFiMesh::EVENT_DATA, data);
     }
 }
 
@@ -197,14 +287,14 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
         case MESH_EVENT_STARTED: {
             esp_mesh_get_id(&id);
             ESP_LOGI(TAG, "<MESH_EVENT_MESH_STARTED>ID:" MACSTR"", MAC2STR(id.addr));
-            is_mesh_connected = false;
-            mesh_layer = esp_mesh_get_layer();
+            wifi_mesh->is_mesh_connected = false;
+            wifi_mesh->mesh_layer = esp_mesh_get_layer();
         }
             break;
         case MESH_EVENT_STOPPED: {
             ESP_LOGI(TAG, "<MESH_EVENT_STOPPED>");
-            is_mesh_connected = false;
-            mesh_layer = esp_mesh_get_layer();
+            wifi_mesh->is_mesh_connected = false;
+            wifi_mesh->mesh_layer = esp_mesh_get_layer();
         }
             break;
         case MESH_EVENT_CHILD_CONNECTED: {
@@ -225,14 +315,14 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             auto *routing_table = (mesh_event_routing_table_change_t *)event_data;
             ESP_LOGW(TAG, "<MESH_EVENT_ROUTING_TABLE_ADD>add %d, new:%d, layer:%d",
                      routing_table->rt_size_change,
-                     routing_table->rt_size_new, mesh_layer);
+                     routing_table->rt_size_new, wifi_mesh->mesh_layer);
         }
             break;
         case MESH_EVENT_ROUTING_TABLE_REMOVE: {
             auto *routing_table = (mesh_event_routing_table_change_t *)event_data;
             ESP_LOGW(TAG, "<MESH_EVENT_ROUTING_TABLE_REMOVE>remove %d, new:%d, layer:%d",
                      routing_table->rt_size_change,
-                     routing_table->rt_size_new, mesh_layer);
+                     routing_table->rt_size_new, wifi_mesh->mesh_layer);
         }
             break;
         case MESH_EVENT_NO_PARENT_FOUND: {
@@ -245,17 +335,20 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
         case MESH_EVENT_PARENT_CONNECTED: {
             auto *connected = (mesh_event_connected_t *)event_data;
             esp_mesh_get_id(&id);
-            mesh_layer = connected->self_layer;
-            memcpy(&mesh_parent_addr.addr, connected->connected.bssid, 6);
+            wifi_mesh->mesh_layer = connected->self_layer;
+            memcpy(&wifi_mesh->mesh_parent_addr.addr, connected->connected.bssid, 6);
             ESP_LOGI(TAG,
                      "<MESH_EVENT_PARENT_CONNECTED>layer:%d-->%d, parent:" MACSTR"%s, ID:" MACSTR", duty:%d",
-                     last_layer, mesh_layer, MAC2STR(mesh_parent_addr.addr),
+                     last_layer, wifi_mesh->mesh_layer, MAC2STR(wifi_mesh->mesh_parent_addr.addr),
                      esp_mesh_is_root() ? "<ROOT>" :
-                     (mesh_layer == 2) ? "<layer2>" : "", MAC2STR(id.addr), connected->duty);
-            is_mesh_connected = true;
+                     (wifi_mesh->mesh_layer == 2) ? "<layer2>" : "", MAC2STR(id.addr), connected->duty);
+            wifi_mesh->is_mesh_connected = true;
             if (esp_mesh_is_root()) {
-                esp_netif_dhcpc_stop(netif_sta);
-                esp_netif_dhcpc_start(netif_sta);
+                esp_netif_dhcpc_stop(wifi_mesh->netif_sta);
+                esp_netif_dhcpc_start(wifi_mesh->netif_sta);
+            } else {
+                HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_CONNECTED, nullptr);
+                HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_UPLOAD_INFO, nullptr);
             }
         }
             break;
@@ -264,24 +357,28 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG,
                      "<MESH_EVENT_PARENT_DISCONNECTED>reason:%d",
                      disconnected->reason);
-            is_mesh_connected = false;
-            mesh_layer = esp_mesh_get_layer();
+            wifi_mesh->is_mesh_connected = false;
+            wifi_mesh->mesh_layer = esp_mesh_get_layer();
         }
             break;
         case MESH_EVENT_LAYER_CHANGE: {
             auto *layer_change = (mesh_event_layer_change_t *)event_data;
-            mesh_layer = layer_change->new_layer;
+            wifi_mesh->mesh_layer = layer_change->new_layer;
             ESP_LOGI(TAG, "<MESH_EVENT_LAYER_CHANGE>layer:%d-->%d%s",
-                     last_layer, mesh_layer,
+                     last_layer, wifi_mesh->mesh_layer,
                      esp_mesh_is_root() ? "<ROOT>" :
-                     (mesh_layer == 2) ? "<layer2>" : "");
-            last_layer = mesh_layer;
+                     (wifi_mesh->mesh_layer == 2) ? "<layer2>" : "");
+            last_layer = wifi_mesh->mesh_layer;
         }
             break;
         case MESH_EVENT_ROOT_ADDRESS: {
             auto *root_addr = (mesh_event_root_address_t *)event_data;
             ESP_LOGI(TAG, "<MESH_EVENT_ROOT_ADDRESS>root address:" MACSTR"",
                      MAC2STR(root_addr->addr));
+            mesh_addr_t self_addr;
+            esp_read_mac((uint8_t*)&self_addr, ESP_MAC_WIFI_SOFTAP);
+            ESP_LOGI(TAG, "<MESH_EVENT_ROOT_ADDRESS>self address:" MACSTR"",
+                     MAC2STR(self_addr.addr));
         }
             break;
         case MESH_EVENT_VOTE_STARTED: {
@@ -307,9 +404,9 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             break;
         case MESH_EVENT_ROOT_SWITCH_ACK: {
             /* new root */
-            mesh_layer = esp_mesh_get_layer();
-            esp_mesh_get_parent_bssid(&mesh_parent_addr);
-            ESP_LOGI(TAG, "<MESH_EVENT_ROOT_SWITCH_ACK>layer:%d, parent:" MACSTR"", mesh_layer, MAC2STR(mesh_parent_addr.addr));
+            wifi_mesh->mesh_layer = esp_mesh_get_layer();
+            esp_mesh_get_parent_bssid(&wifi_mesh->mesh_parent_addr);
+            ESP_LOGI(TAG, "<MESH_EVENT_ROOT_SWITCH_ACK>layer:%d, parent:" MACSTR"", wifi_mesh->mesh_layer, MAC2STR(wifi_mesh->mesh_parent_addr.addr));
         }
             break;
         case MESH_EVENT_TODS_STATE: {
@@ -385,50 +482,18 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
     }
 }
 
-[[noreturn]] void HAL::WiFiMesh::SendTask(void *arg) {
-    for(;;) {
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-    }
+void HAL::WiFiMesh::Publish(void *data, size_t size, HAL::WiFiMesh::msg_type_t type) {
+    this->Publish(data, size, type, nullptr);
 }
 
-void HAL::WiFiMesh::Publish(HAL::WiFiMesh::msg_t &msg) {
-    if(esp_mesh_is_root()) {
-        ESP_LOGI(TAG, "mqtt: %p, msg.type: %d", mqtt, msg.type);
-        /* mqtt send */
-        if(msg.type == MSG_MQTT) {
-            if(mqtt)
-                mqtt->Publish(*(HAL::MQTT::msg_t*)msg.data);
-            return;
-        }
-    }
-
-    /* send to root and root send to mqtt */
-    if(is_mesh_connected) {
-
-    }
-}
-
-/* TODO: TEST */
-void HAL::WiFiMesh::RecvTask(void *arg) {
-    mesh_addr_t from;
-    mesh_data_t data;
-    int flag = 0;
-    esp_err_t err;
-    auto *ha = (HAL::WiFiMesh*)arg;
-
-    for(;;) {
-        err = esp_mesh_recv(&from, &data, portMAX_DELAY, &flag, nullptr, 0);
-        if(err != ESP_OK || data.size != sizeof(msg_t))
-            continue;
-
-        auto *msg = (msg_t*)data.data;
-        /* process */
-        if (msg->type == MSG_MQTT) {
-            /* Publish */
-            ha->Publish(*msg);
-        } else {
-            /* callback */
-            HAL::WiFiMesh::RunCallback((void*)&ha->callback, EVENT_DATA, (void*)msg);
-        }
-    }
+void HAL::WiFiMesh::Publish(void *data, size_t size, HAL::WiFiMesh::msg_type_t type, mesh_addr_t *mac) {
+    ESP_LOGI(TAG, "good job 1");
+    msg_t msg;
+    memcpy(msg.data, data, size);
+    msg.type = type;
+    msg.mac = mac;
+    msg.len = size;
+    ESP_LOGI(TAG, "good job 2");
+    this->Publish(msg);
+    ESP_LOGI(TAG, "good job 3");
 }
