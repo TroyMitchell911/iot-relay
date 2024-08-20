@@ -202,6 +202,9 @@ void HAL::WiFiMesh::Publish(HAL::WiFiMesh::msg_t &msg) {
             } else if(msg.type == MSG_SUBSCRIBE) {
                 auto *sub_msg = (subscribe_msg_t *)msg.data;
                 mqtt->Subscribe(sub_msg->topic, sub_msg->qos);
+            } else if(msg.type == MSG_UNSUBSCRIBE) {
+                auto *sub_msg = (subscribe_msg_t *)msg.data;
+                mqtt->Unsubscirbe(sub_msg->topic);
             }
         }
     }
@@ -254,6 +257,11 @@ void HAL::WiFiMesh::RecvTask(void *arg) {
             case MSG_SUBSCRIBE: {
                 auto *sub_msg = (subscribe_msg_t *)msg.data;
                 wifi_mesh->mqtt->Subscribe(sub_msg->topic, sub_msg->qos);
+            }
+                break;
+            case MSG_UNSUBSCRIBE: {
+                auto *unsub_msg = (subscribe_msg_t *)msg.data;
+                wifi_mesh->mqtt->Unsubscirbe(unsub_msg->topic);
             }
                 break;
             default:
@@ -506,14 +514,22 @@ void HAL::WiFiMesh::Publish(void *data, size_t size, HAL::WiFiMesh::msg_type_t t
 }
 
 void HAL::WiFiMesh::Subscribe(char *topic, uint8_t qos) {
-    subscribe_msg_t subscribe_topic{};
+    subscribe_msg_t sub_msg{};
 
-    strcpy(subscribe_topic.topic, topic);
-    subscribe_topic.qos = qos;
+    strcpy(sub_msg.topic, topic);
+    sub_msg.qos = qos;
 
-    this->Publish(&subscribe_topic, sizeof(subscribe_msg_t), MSG_SUBSCRIBE);
+    this->Publish(&sub_msg, sizeof(subscribe_msg_t), MSG_SUBSCRIBE);
 }
 
 void HAL::WiFiMesh::Subscribe(char *topic) {
     this->Subscribe(topic, 0);
+}
+
+void HAL::WiFiMesh::Unsubscribe(char *topic) {
+    subscribe_msg_t unsub_msg{};
+
+    strcpy(unsub_msg.topic, topic);
+
+    this->Publish(&unsub_msg, sizeof(subscribe_msg_t), MSG_UNSUBSCRIBE);
 }

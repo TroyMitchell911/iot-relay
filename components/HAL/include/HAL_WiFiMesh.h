@@ -120,6 +120,7 @@ namespace HAL {
         void Publish(void *data, size_t size, msg_type_t type);
         void Subscribe(char *topic);
         void Subscribe(char *topic, uint8_t qos);
+        void Unsubscribe(char *topic);
     };
 }
 
