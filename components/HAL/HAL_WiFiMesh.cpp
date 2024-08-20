@@ -195,10 +195,14 @@ void HAL::WiFiMesh::Publish(HAL::WiFiMesh::msg_t &msg) {
     if(esp_mesh_is_root()) {
         /* mqtt send */
         ESP_LOGI(TAG, "msg.type: %d msg.mac: %p", msg.type, msg.mac);
-        if(msg.type == MSG_MQTT && msg.mac == nullptr) {
-            if(mqtt)
+        if(mqtt) {
+            if(msg.type == MSG_MQTT && msg.mac == nullptr) {
                 mqtt->Publish(*(HAL::MQTT::msg_t*)msg.data);
-            return;
+                return;
+            } else if(msg.type == MSG_SUBSCRIBE) {
+                auto *sub_msg = (subscribe_msg_t *)msg.data;
+                mqtt->Subscribe(sub_msg->topic, sub_msg->qos);
+            }
         }
     }
 
@@ -245,6 +249,12 @@ void HAL::WiFiMesh::RecvTask(void *arg) {
             case MSG_UPLOAD_SELF_INFO:
                 ESP_LOGI(TAG, "received device info");
                 wifi_mesh->device_info_table.push_back(((self_info_t*)msg.data));
+                break;
+            /* Just root receive */
+            case MSG_SUBSCRIBE: {
+                auto *sub_msg = (subscribe_msg_t *)msg.data;
+                wifi_mesh->mqtt->Subscribe(sub_msg->topic, sub_msg->qos);
+            }
                 break;
             default:
                 /* callback */
@@ -487,13 +497,23 @@ void HAL::WiFiMesh::Publish(void *data, size_t size, HAL::WiFiMesh::msg_type_t t
 }
 
 void HAL::WiFiMesh::Publish(void *data, size_t size, HAL::WiFiMesh::msg_type_t type, mesh_addr_t *mac) {
-    ESP_LOGI(TAG, "good job 1");
     msg_t msg;
     memcpy(msg.data, data, size);
     msg.type = type;
     msg.mac = mac;
     msg.len = size;
-    ESP_LOGI(TAG, "good job 2");
     this->Publish(msg);
-    ESP_LOGI(TAG, "good job 3");
+}
+
+void HAL::WiFiMesh::Subscribe(char *topic, uint8_t qos) {
+    subscribe_msg_t subscribe_topic{};
+
+    strcpy(subscribe_topic.topic, topic);
+    subscribe_topic.qos = qos;
+
+    this->Publish(&subscribe_topic, sizeof(subscribe_msg_t), MSG_SUBSCRIBE);
+}
+
+void HAL::WiFiMesh::Subscribe(char *topic) {
+    this->Subscribe(topic, 0);
 }

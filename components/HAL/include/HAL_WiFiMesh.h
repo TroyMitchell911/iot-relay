@@ -51,6 +51,8 @@ namespace HAL {
         typedef enum {
             MSG_MQTT = 0,
             MSG_UPLOAD_SELF_INFO,
+            MSG_SUBSCRIBE,
+            MSG_UNSUBSCRIBE,
             MSG_TYPE_MAX,
         }msg_type_t;
 
@@ -70,6 +72,11 @@ namespace HAL {
             void *arg;
             void *pthis;
         }s_callback_t;
+
+        typedef struct {
+            char topic[MQTT_TOPIC_MAX_NUM];
+            uint8_t qos;
+        }subscribe_msg_t;
 
         std::list<s_callback_t> callback;
         TaskHandle_t mesh_send_task_handler = nullptr;
@@ -111,6 +118,8 @@ namespace HAL {
         void Publish(msg_t &msg);
         void Publish(void *data, size_t size, msg_type_t type, mesh_addr_t *mac);
         void Publish(void *data, size_t size, msg_type_t type);
+        void Subscribe(char *topic);
+        void Subscribe(char *topic, uint8_t qos);
     };
 }
 
