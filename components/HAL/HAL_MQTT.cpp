@@ -29,14 +29,6 @@ HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const ch
     this->mqtt_cfg.broker.address.uri = uri;
     this->mqtt_cfg.broker.verification.certificate = (const char*) ca;
     this->mqtt_cfg.task.stack_size = 8192;
-
-    this->mqtt_client = esp_mqtt_client_init(&this->mqtt_cfg);
-    /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
-    esp_mqtt_client_register_event(this->mqtt_client,
-                                   esp_mqtt_event_id_t(ESP_EVENT_ANY_ID),
-                                   HAL::MQTT::EventHandle,
-                                   (void*)&this->callback);
-    esp_mqtt_client_start(this->mqtt_client);
 }
 
 HAL::MQTT::~MQTT() {
@@ -180,4 +172,14 @@ void HAL::MQTT::Publish(char *topic, char *data, int len, int qos, int retain) {
     strcpy(msg.topic, topic);
     strcpy(msg.data, data);
     this->Publish(msg);
+}
+
+void HAL::MQTT::Start() {
+    this->mqtt_client = esp_mqtt_client_init(&this->mqtt_cfg);
+    /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
+    esp_mqtt_client_register_event(this->mqtt_client,
+                                   esp_mqtt_event_id_t(ESP_EVENT_ANY_ID),
+                                   HAL::MQTT::EventHandle,
+                                   (void*)&this->callback);
+    esp_mqtt_client_start(this->mqtt_client);
 }
