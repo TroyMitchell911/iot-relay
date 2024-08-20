@@ -32,7 +32,6 @@ static void mqtt_event(HAL::MQTT::event_t event, void *data, void *arg) {
     if(event == HAL::MQTT::EVENT_CONNECTED) {
         printf("EVENT_CONNECTED\n");
         HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
-        mesh.SetMQTT(mqtt);
         sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
     }
 }
@@ -41,12 +40,11 @@ static void wifi_event(HAL::WiFiMesh::event_t event_id, void *event_data, void *
     if(event_id == HAL::WiFiMesh::EVENT_GOT_IP) {
         auto *data = (esp_ip4_addr_t*)event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(data));
-        printf("%p\n", mqtt_event);
-        mqtt = new HAL::MQTT(CA_EMQX_TROY_HOME_URI,
-                             CA_EMQX_TROY_HOME_USER,
-                             CA_EMQX_TROY_HOME_PWD,
-                             ca_emqx_troy_home);
         mqtt->BindingCallback(mqtt_event, HAL::MQTT::EVENT_CONNECTED, nullptr);
+        mqtt->Start();
+    } else if(event_id == HAL::WiFiMesh::EVENT_CONNECTED) {
+        HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
+        sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
     }
 }
 
@@ -67,20 +65,26 @@ __attribute__((noreturn)) void app_main(void) {
     key_state = key->Get();
 
     HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
-    mesh.BindingCallback(wifi_event, uint32_t(HAL::WiFiMesh::EVENT_GOT_IP), nullptr);
+    mesh.BindingCallback(wifi_event, nullptr);
     HAL::WiFiMesh::cfg_t mesh_cfg{};
     mesh_cfg.max_connections = CONFIG_MESH_AP_CONNECTIONS;
     mesh_cfg.mesh_ap_pwd = CONFIG_MESH_AP_PASSWD;
-//    mesh_cfg.router_ssid = "troyself-wifi";
-//    mesh_cfg.router_pwd = "troy888666";
-    mesh_cfg.router_ssid = "HBDT-23F";
-    mesh_cfg.router_pwd = "hbishbis";
+    mesh_cfg.router_ssid = "troyself-wifi";
+    mesh_cfg.router_pwd = "troy888666";
+//    mesh_cfg.router_ssid = "HBDT-23F";
+//    mesh_cfg.router_pwd = "hbishbis";
     mesh_cfg.mesh_channel = CONFIG_MESH_CHANNEL;
     mesh_cfg.max_layer = CONFIG_MESH_MAX_LAYER;
     for(unsigned char & i : mesh_cfg.mesh_id) {
         i = 0x77;
     }
+    mqtt = new HAL::MQTT(CA_EMQX_TROY_HOME_URI,
+                         CA_EMQX_TROY_HOME_USER,
+                         CA_EMQX_TROY_HOME_PWD,
+                         ca_emqx_troy_home);
+    mesh.SetMQTT(mqtt);
     mesh.Start(&mesh_cfg);
+//    sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
 
     for(;;){
         if(key->Get() != key_state) {
