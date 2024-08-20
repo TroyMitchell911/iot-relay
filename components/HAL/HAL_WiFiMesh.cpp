@@ -247,13 +247,16 @@ void HAL::WiFiMesh::RecvTask(void *arg) {
         switch(msg.type) {
             case MSG_MQTT:
                 /* Publish */
-                wifi_mesh->Publish(msg);
+                if(esp_mesh_is_root())
+                    wifi_mesh->Publish(msg);
+                else
+                    HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, HAL::WiFiMesh::EVENT_DATA, &msg);
                 break;
             case MSG_UPLOAD_SELF_INFO:
                 ESP_LOGI(TAG, "received device info");
                 wifi_mesh->device_info_table.push_back(((self_info_t*)msg.data));
                 break;
-            /* Just root receive */
+            /* just root receive */
             case MSG_SUBSCRIBE: {
                 auto *sub_msg = (subscribe_msg_t *)msg.data;
                 wifi_mesh->mqtt->Subscribe(sub_msg->topic, sub_msg->qos);
