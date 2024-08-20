@@ -173,7 +173,9 @@ void HAL::WiFiMesh::RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *d
             if(xQueueReceive(wifi_mesh->mesh_msg_queue, &mesh_msg, portMAX_DELAY) == pdTRUE) {
                 /* Even the root node may be executed here, so we should judge carefully */
                 msg = (msg_t*)mesh_msg.data;
-                ESP_LOGI(TAG, "SendTask: %p size:%d", msg->mac ? msg->mac : nullptr, mesh_msg.size);
+
+                if(msg->mac)
+                    ESP_LOGI(TAG, "SendTask msg.mac: " MACSTR "", MAC2STR(msg->mac->addr));
 
                 esp_err_t err = esp_mesh_send(msg->mac, &mesh_msg, MESH_DATA_P2P, nullptr, 0);
                 if (err) {
@@ -193,6 +195,8 @@ void HAL::WiFiMesh::RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *d
 void HAL::WiFiMesh::Publish(HAL::WiFiMesh::msg_t &msg) {
 //    ESP_LOGI(TAG, "msg.type: %d msg.mac: %p", msg.type, msg.mac);
     if(esp_mesh_is_root()) {
+        if(msg.mac)
+            ESP_LOGI(TAG, "msg.type: %d msg.mac: " MACSTR "", msg.type, MAC2STR(msg.mac->addr));
         /* mqtt send */
         ESP_LOGI(TAG, "msg.type: %d msg.mac: %p", msg.type, msg.mac);
         if(mqtt) {
@@ -202,9 +206,11 @@ void HAL::WiFiMesh::Publish(HAL::WiFiMesh::msg_t &msg) {
             } else if(msg.type == MSG_SUBSCRIBE) {
                 auto *sub_msg = (subscribe_msg_t *)msg.data;
                 mqtt->Subscribe(sub_msg->topic, sub_msg->qos);
+                return;
             } else if(msg.type == MSG_UNSUBSCRIBE) {
                 auto *sub_msg = (subscribe_msg_t *)msg.data;
                 mqtt->Unsubscirbe(sub_msg->topic);
+                return;
             }
         }
     }
@@ -240,8 +246,10 @@ void HAL::WiFiMesh::RecvTask(void *arg) {
             continue;
         }
         err = esp_mesh_recv(&from, &data, portMAX_DELAY, &flag, nullptr, 0);
-        if(err != ESP_OK || data.size != sizeof(msg_t))
+        if(err != ESP_OK || data.size != sizeof(msg_t)) {
+            ESP_LOGI(TAG, "haha fuck err:%x data.size:%d", err, data.size);
             continue;
+        }
 
         ESP_LOGD(TAG, "RecvTask: %d", msg.type);
         switch(msg.type) {
@@ -252,11 +260,14 @@ void HAL::WiFiMesh::RecvTask(void *arg) {
                 else
                     HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, HAL::WiFiMesh::EVENT_DATA, &msg);
                 break;
-            case MSG_UPLOAD_SELF_INFO:
-                ESP_LOGI(TAG, "received device info");
-                wifi_mesh->device_info_table.push_back(((self_info_t*)msg.data));
+            case MSG_UPLOAD_SELF_INFO: {
+                auto *device_info = (self_info_t*)malloc(sizeof(self_info_t));
+                memcpy(device_info, msg.data, sizeof(self_info_t));
+                ESP_LOGI(TAG, "device info: %s mac:" MACSTR"",device_info->unique_id, MAC2STR(device_info->mac.addr) );
+                wifi_mesh->device_info_table.push_back(device_info);
+            }
                 break;
-            /* just root receive */
+                /* just root receive */
             case MSG_SUBSCRIBE: {
                 auto *sub_msg = (subscribe_msg_t *)msg.data;
                 wifi_mesh->mqtt->Subscribe(sub_msg->topic, sub_msg->qos);
@@ -281,7 +292,7 @@ void HAL::WiFiMesh::MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *
         auto *r_msg = (HAL::MQTT::msg_t *) data;
         for (auto & it : wifi_mesh->device_info_table) {
             if (strncmp(r_msg->topic, it->unique_id, strlen(it->unique_id)) == 0) {
-                wifi_mesh->Publish(&r_msg, sizeof(MSG_MQTT), MSG_MQTT, &it->mac);
+                wifi_mesh->Publish(data, sizeof(HAL::MQTT::msg_t), MSG_MQTT, &it->mac);
                 return;
             }
         }
@@ -397,7 +408,7 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "<MESH_EVENT_ROOT_ADDRESS>root address:" MACSTR"",
                      MAC2STR(root_addr->addr));
             mesh_addr_t self_addr;
-            esp_read_mac((uint8_t*)&self_addr, ESP_MAC_WIFI_SOFTAP);
+            esp_read_mac((uint8_t*)&self_addr, ESP_MAC_WIFI_STA);
             ESP_LOGI(TAG, "<MESH_EVENT_ROOT_ADDRESS>self address:" MACSTR"",
                      MAC2STR(self_addr.addr));
         }

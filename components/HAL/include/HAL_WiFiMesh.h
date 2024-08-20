@@ -45,7 +45,7 @@ namespace HAL {
              * if you have a light and its command theme is 'main-room/switch/ceiling-light/command',
              * then your unique ID should be 'main-room/switch/ceiling-light/'
              * */
-            char *unique_id;
+            char unique_id[MQTT_TOPIC_MAX_NUM];
         }self_info_t;
 
         typedef enum {
