@@ -48,8 +48,9 @@ namespace HAL {
         esp_mqtt_client_config_t mqtt_cfg{};
         esp_mqtt_client_handle_t mqtt_client;
         std::list<s_callback_t> callback;
-        TaskHandle_t mqtt_send_task_handler;
-        QueueHandle_t mqtt_msg_queue;
+        TaskHandle_t mqtt_send_task_handler = nullptr;
+        QueueHandle_t mqtt_msg_queue = nullptr;
+        QueueHandle_t mqtt_sub_queue = nullptr;
 
     private:
         static void EventHandle(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);

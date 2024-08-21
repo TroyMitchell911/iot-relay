@@ -17,6 +17,7 @@ HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) : MQTT(u
 
 HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca) {
     this->mqtt_msg_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(HAL::MQTT::msg_t));
+    this->mqtt_sub_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, MQTT_TOPIC_MAX_NUM);
 
     this->mqtt_cfg.credentials.username = username;
     this->mqtt_cfg.credentials.authentication.password = pwd;
@@ -26,7 +27,12 @@ HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const ch
 }
 
 HAL::MQTT::~MQTT() {
-    vTaskDelete(this->mqtt_send_task_handler);
+    if(this->mqtt_send_task_handler)
+        vTaskDelete(this->mqtt_send_task_handler);
+    if(this->mqtt_msg_queue)
+        vQueueDelete(this->mqtt_msg_queue);
+    if(this->mqtt_sub_queue)
+        vQueueDelete(this->mqtt_sub_queue);
 }
 
 void HAL::MQTT::Subscribe(const char *topic, uint8_t qos) {
