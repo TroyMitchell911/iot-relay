@@ -17,12 +17,6 @@ HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) : MQTT(u
 
 HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca) {
     this->mqtt_msg_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(HAL::MQTT::msg_t));
-    xTaskCreate(HAL::MQTT::SendTask,
-                "mesh send",
-                8192,
-                (void*)this,
-                0,
-                &this->mqtt_send_task_handler);
 
     this->mqtt_cfg.credentials.username = username;
     this->mqtt_cfg.credentials.authentication.password = pwd;
@@ -184,4 +178,10 @@ void HAL::MQTT::Start() {
                                    HAL::MQTT::EventHandle,
                                    (void*)&this->callback);
     esp_mqtt_client_start(this->mqtt_client);
+    xTaskCreate(HAL::MQTT::SendTask,
+                "mesh send",
+                8192,
+                (void*)this,
+                0,
+                &this->mqtt_send_task_handler);
 }
