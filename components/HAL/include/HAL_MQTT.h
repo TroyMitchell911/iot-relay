@@ -44,18 +44,28 @@ namespace HAL {
             void *arg;
         }s_callback_t;
 
+        typedef struct {
+            char topic[MQTT_TOPIC_MAX_NUM];
+            int qos : 1;
+            bool is_sub;
+        }mqtt_topic_t;
+
     private:
         esp_mqtt_client_config_t mqtt_cfg{};
         esp_mqtt_client_handle_t mqtt_client;
         std::list<s_callback_t> callback;
         TaskHandle_t mqtt_send_task_handler = nullptr;
+        TaskHandle_t mqtt_topic_task_handler = nullptr;
         QueueHandle_t mqtt_msg_queue = nullptr;
-        QueueHandle_t mqtt_sub_queue = nullptr;
+        QueueHandle_t mqtt_topic_queue = nullptr;
+        EventGroupHandle_t mqtt_event_group = nullptr;
 
     private:
         static void EventHandle(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
         static void RunCallback(void *arg, HAL::MQTT::event_t event, void *data);
-        static void SendTask(void *arg);
+
+        [[noreturn]] static void SendTask(void *arg);
+        static void SubTask(void *arg);
 
     public:
         MQTT(const char *uri);

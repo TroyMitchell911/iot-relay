@@ -7,6 +7,8 @@
 
 #define TAG "[HAL::MQTT]"
 
+#define MQTT_CONNECTED_BIT  BIT0
+
 HAL::MQTT::MQTT(const char *uri) : MQTT(uri, nullptr, nullptr, nullptr) {
 
 }
@@ -17,7 +19,7 @@ HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) : MQTT(u
 
 HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca) {
     this->mqtt_msg_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(HAL::MQTT::msg_t));
-    this->mqtt_sub_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, MQTT_TOPIC_MAX_NUM);
+    this->mqtt_topic_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(mqtt_topic_t));
 
     this->mqtt_cfg.credentials.username = username;
     this->mqtt_cfg.credentials.authentication.password = pwd;
@@ -31,18 +33,26 @@ HAL::MQTT::~MQTT() {
         vTaskDelete(this->mqtt_send_task_handler);
     if(this->mqtt_msg_queue)
         vQueueDelete(this->mqtt_msg_queue);
-    if(this->mqtt_sub_queue)
-        vQueueDelete(this->mqtt_sub_queue);
+    if(this->mqtt_topic_task_handler)
+        vTaskDelete(this->mqtt_topic_task_handler);
+    if(this->mqtt_topic_queue)
+        vQueueDelete(this->mqtt_topic_queue);
 }
 
 void HAL::MQTT::Subscribe(const char *topic, uint8_t qos) {
+    mqtt_topic_t mqtt_topic{};
+    mqtt_topic.qos = qos;
+    mqtt_topic.is_sub = true;
+    strcpy(mqtt_topic.topic, topic);
     ESP_LOGI(TAG, "Subscribe %s", topic);
-    esp_mqtt_client_subscribe(this->mqtt_client, topic, qos);
+    xQueueSend(this->mqtt_topic_queue, topic, MQTT_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
 }
 
 void HAL::MQTT::Unsubscirbe(const char *topic) {
+    mqtt_topic_t mqtt_topic{};
+    mqtt_topic.is_sub = false;
+    strcpy(mqtt_topic.topic, topic);
     ESP_LOGI(TAG, "Unsubscirbe %s", topic);
-    esp_mqtt_client_unsubscribe(this->mqtt_client, topic);
 }
 
 void HAL::MQTT::BindingCallback(HAL::MQTT::callback_t cb, uint32_t id, void *arg) {
@@ -80,19 +90,26 @@ void HAL::MQTT::Publish(HAL::MQTT::msg_t &msg) {
     xQueueSend(this->mqtt_msg_queue, &msg, MQTT_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
 }
 
-void HAL::MQTT::SendTask(void *arg) {
+[[noreturn]] void HAL::MQTT::SendTask(void *arg) {
     auto mqtt = (HAL::MQTT*)arg;
     HAL::MQTT::msg_t msg;
-    for(;;) {
-        if(xQueueReceive(mqtt->mqtt_msg_queue, &msg, portMAX_DELAY) == pdTRUE) {
-            esp_mqtt_client_publish(mqtt->mqtt_client,
-                                    msg.topic,
-                                    msg.data,
-                                    int(msg.len == 0 ? strlen(msg.data) : msg.len),
-                                    msg.qos,
-                                    msg.retain);
+    EventBits_t bits = xEventGroupWaitBits(mqtt->mqtt_event_group,
+                                           MQTT_CONNECTED_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+    if(bits & MQTT_CONNECTED_BIT) {
+        for (;;) {
+            if (xQueueReceive(mqtt->mqtt_msg_queue, &msg, portMAX_DELAY) == pdTRUE) {
+                esp_mqtt_client_publish(mqtt->mqtt_client,
+                                        msg.topic,
+                                        msg.data,
+                                        int(msg.len == 0 ? strlen(msg.data) : msg.len),
+                                        msg.qos,
+                                        msg.retain);
+            }
+            vTaskDelay(100 / portTICK_PERIOD_MS);
         }
-        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
@@ -109,11 +126,12 @@ void HAL::MQTT::RunCallback(void *arg, HAL::MQTT::event_t event, void *data) {
 void HAL::MQTT::EventHandle(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
     ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32, base, event_id);
     auto event = (esp_mqtt_event_handle_t)event_data;
-
+    auto *mqtt = (HAL::MQTT*)handler_args;
     switch (event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-            RunCallback(handler_args, HAL::MQTT::EVENT_CONNECTED, nullptr);
+            xEventGroupSetBits(mqtt->mqtt_event_group, MQTT_CONNECTED_BIT);
+            RunCallback((void*)&mqtt->callback, HAL::MQTT::EVENT_CONNECTED, nullptr);
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -136,7 +154,7 @@ void HAL::MQTT::EventHandle(void *handler_args, esp_event_base_t base, int32_t e
             memcpy(msg.topic, event->topic, event->topic_len);
             msg.len = event->data_len;
             msg.topic_len = event->topic_len;
-            RunCallback(handler_args, HAL::MQTT::EVENT_DATA, &msg);
+            RunCallback((void*)&mqtt->callback, HAL::MQTT::EVENT_DATA, &msg);
             break;
         }
         case MQTT_EVENT_ERROR:
@@ -182,12 +200,41 @@ void HAL::MQTT::Start() {
     esp_mqtt_client_register_event(this->mqtt_client,
                                    esp_mqtt_event_id_t(ESP_EVENT_ANY_ID),
                                    HAL::MQTT::EventHandle,
-                                   (void*)&this->callback);
+                                   (void*)this);
     esp_mqtt_client_start(this->mqtt_client);
+    this->mqtt_event_group = xEventGroupCreate();
     xTaskCreate(HAL::MQTT::SendTask,
                 "mesh send",
                 8192,
                 (void*)this,
                 0,
                 &this->mqtt_send_task_handler);
+    xTaskCreate(HAL::MQTT::SubTask,
+                "mesh send",
+                2048,
+                (void*)this,
+                0,
+                &this->mqtt_topic_task_handler);
+
+}
+
+void HAL::MQTT::SubTask(void *arg) {
+    auto mqtt = (HAL::MQTT*)arg;
+    mqtt_topic_t mqtt_topic;
+    EventBits_t bits = xEventGroupWaitBits(mqtt->mqtt_event_group,
+                                           MQTT_CONNECTED_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+    if(bits & MQTT_CONNECTED_BIT) {
+        for(;;) {
+            if(xQueueReceive(mqtt->mqtt_topic_queue, &mqtt_topic, portMAX_DELAY) == pdTRUE) {
+                if(mqtt_topic.is_sub)
+                    esp_mqtt_client_subscribe(mqtt->mqtt_client, mqtt_topic.topic, mqtt_topic.qos);
+                else
+                    esp_mqtt_client_unsubscribe(mqtt->mqtt_client, mqtt_topic.topic);
+            }
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+        }
+    }
 }
