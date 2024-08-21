@@ -341,7 +341,7 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             if(!esp_mesh_is_root()) {
                 mesh_addr_t child_mac;
                 memcpy(child_mac.addr, child_connected->mac, sizeof(child_mac.addr));
-                wifi_mesh->Publish(nullptr, 0, MSG_UPLOAD_DEVICE_INFO, &child_mac);
+                wifi_mesh->Publish(&child_mac, sizeof(mesh_addr_t), MSG_UPLOAD_DEVICE_INFO, &child_mac);
 //                HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_UPLOAD_DEVICE_INFO, nullptr);
             }
         }
