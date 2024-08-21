@@ -36,10 +36,12 @@ HAL::MQTT::~MQTT() {
 }
 
 void HAL::MQTT::Subscribe(const char *topic, uint8_t qos) {
+    ESP_LOGI(TAG, "Subscribe %s", topic);
     esp_mqtt_client_subscribe(this->mqtt_client, topic, qos);
 }
 
 void HAL::MQTT::Unsubscirbe(const char *topic) {
+    ESP_LOGI(TAG, "Unsubscirbe %s", topic);
     esp_mqtt_client_unsubscribe(this->mqtt_client, topic);
 }
 
@@ -99,6 +101,7 @@ void HAL::MQTT::RunCallback(void *arg, HAL::MQTT::event_t event, void *data) {
     auto lst = (std::list<s_callback_t>*)arg;
     for (auto & it : *lst) {
         if(it.event_mask & event) {
+            ESP_LOGI(TAG, "Event id: 0x%x", event);
             it.callback(event, data, it.arg);
         }
     }
