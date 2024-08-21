@@ -260,11 +260,15 @@ void HAL::WiFiMesh::RecvTask(void *arg) {
                 else
                     HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, HAL::WiFiMesh::EVENT_DATA, &msg);
                 break;
-            case MSG_UPLOAD_SELF_INFO: {
-                auto *device_info = (self_info_t*)malloc(sizeof(self_info_t));
-                memcpy(device_info, msg.data, sizeof(self_info_t));
-                ESP_LOGI(TAG, "device info: %s mac:" MACSTR"",device_info->unique_id, MAC2STR(device_info->mac.addr) );
-                wifi_mesh->device_info_table.push_back(device_info);
+            case MSG_UPLOAD_DEVICE_INFO: {
+                if(esp_mesh_is_root()) {
+                    auto *device_info = (device_info_t*)malloc(sizeof(device_info_t));
+                    memcpy(device_info, msg.data, sizeof(device_info_t));
+                    ESP_LOGI(TAG, "device info: %s mac:" MACSTR"",device_info->unique_id, MAC2STR(device_info->mac.addr) );
+                    wifi_mesh->device_info_table.push_back(device_info);
+                } else {
+                    HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, HAL::WiFiMesh::EVENT_UPLOAD_DEVICE_INFO, &msg);
+                }
             }
                 break;
                 /* just root receive */
@@ -334,6 +338,12 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "<MESH_EVENT_CHILD_CONNECTED>aid:%d, " MACSTR"",
                      child_connected->aid,
                      MAC2STR(child_connected->mac));
+            if(!esp_mesh_is_root()) {
+                mesh_addr_t child_mac;
+                memcpy(child_mac.addr, child_connected->mac, sizeof(child_mac.addr));
+                wifi_mesh->Publish(nullptr, 0, MSG_UPLOAD_DEVICE_INFO, &child_mac);
+//                HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_UPLOAD_DEVICE_INFO, nullptr);
+            }
         }
             break;
         case MESH_EVENT_CHILD_DISCONNECTED: {
@@ -380,7 +390,6 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
                 esp_netif_dhcpc_start(wifi_mesh->netif_sta);
             } else {
                 HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_CONNECTED, nullptr);
-                HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_UPLOAD_INFO, nullptr);
             }
         }
             break;

@@ -33,8 +33,8 @@ namespace HAL {
             EVENT_GOT_IP = 0x01,
             EVENT_DATA = EVENT_GOT_IP << 1,
             EVENT_ROOT_WILL_CHANGE = EVENT_DATA << 1,
-            EVENT_UPLOAD_INFO = EVENT_ROOT_WILL_CHANGE << 1,
-            EVENT_CONNECTED = EVENT_UPLOAD_INFO << 1,
+            EVENT_UPLOAD_DEVICE_INFO = EVENT_ROOT_WILL_CHANGE << 1,
+            EVENT_CONNECTED = EVENT_UPLOAD_DEVICE_INFO << 1,
             EVENT_MAX = EVENT_CONNECTED << 1,
         }event_t;
 
@@ -46,11 +46,11 @@ namespace HAL {
              * then your unique ID should be 'main-room/switch/ceiling-light/'
              * */
             char unique_id[MQTT_TOPIC_MAX_NUM];
-        }self_info_t;
+        }device_info_t;
 
         typedef enum {
             MSG_MQTT = 0,
-            MSG_UPLOAD_SELF_INFO,
+            MSG_UPLOAD_DEVICE_INFO,
             MSG_SUBSCRIBE,
             MSG_UNSUBSCRIBE,
             MSG_TYPE_MAX,
@@ -88,7 +88,7 @@ namespace HAL {
         esp_netif_t *netif_sta = nullptr;
         bool is_mesh_connected = false;
         HAL::MQTT* mqtt = nullptr;
-        std::list<self_info_t*> device_info_table;
+        std::list<device_info_t*> device_info_table;
 
     private:
         static void IPEventHandle(void *arg, esp_event_base_t event_base,
