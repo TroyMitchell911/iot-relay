@@ -30,7 +30,6 @@ static App::Switch *sw;
 
 static void mqtt_event(HAL::MQTT::event_t event, void *data, void *arg) {
     if(event == HAL::MQTT::EVENT_CONNECTED) {
-        printf("EVENT_CONNECTED\n");
         HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
         sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
     }
@@ -38,8 +37,6 @@ static void mqtt_event(HAL::MQTT::event_t event, void *data, void *arg) {
 #include "ca_emqx_troy_home.crt"
 static void wifi_event(HAL::WiFiMesh::event_t event_id, void *event_data, void *arg) {
     if(event_id == HAL::WiFiMesh::EVENT_GOT_IP) {
-        auto *data = (esp_ip4_addr_t*)event_data;
-        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(data));
         mqtt->BindingCallback(mqtt_event, HAL::MQTT::EVENT_CONNECTED, nullptr);
         mqtt->Start();
     } else if(event_id == HAL::WiFiMesh::EVENT_CONNECTED) {
@@ -52,7 +49,7 @@ HAL::GPIO::gpio_state_t key_state;
 
 extern "C" {
 __attribute__((noreturn)) void app_main(void) {
-    printf("This a iot relay device\n");
+    ESP_LOGI(TAG, "This a iot relay device");
 
     HAL::Init();
 
@@ -73,6 +70,8 @@ __attribute__((noreturn)) void app_main(void) {
     mesh_cfg.router_pwd = "troy888666";
 //    mesh_cfg.router_ssid = "HBDT-23F";
 //    mesh_cfg.router_pwd = "hbishbis";
+//    mesh_cfg.router_ssid = "troy-phone";
+//    mesh_cfg.router_pwd = "jianglin998";
     mesh_cfg.mesh_channel = CONFIG_MESH_CHANNEL;
     mesh_cfg.max_layer = CONFIG_MESH_MAX_LAYER;
     for(unsigned char & i : mesh_cfg.mesh_id) {
@@ -82,16 +81,17 @@ __attribute__((noreturn)) void app_main(void) {
                          CA_EMQX_TROY_HOME_USER,
                          CA_EMQX_TROY_HOME_PWD,
                          ca_emqx_troy_home);
+    ESP_LOGI(TAG, "mqtt client pointer: %p", mqtt);
     mesh.SetMQTT(mqtt);
     mesh.Start(&mesh_cfg);
 //    sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
 
     for(;;){
-        if(key->Get() != key_state) {
-            printf("act\n");
-            key_state = key->Get();
-            sw->Act();
-        }
+//        if(key->Get() != key_state) {
+//
+//            key_state = key->Get();
+//            sw->Act();
+//        }
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
