@@ -16,8 +16,6 @@ namespace App {
             SWITCH,
             ENTITY_TYPE_MAX
         }entity_type_t;
-    public:
-#define TOPIC_MAX_NUM   64
 
     private:
         const char *online_topic = "homeassistant/status";
@@ -32,9 +30,11 @@ namespace App {
         const char *entity_name;
         bool entity_discovery;
 
-        char command_topic[TOPIC_MAX_NUM] = {0};
+        char command_topic[MQTT_TOPIC_MAX_NUM] = {0};
         char *discovery_topic;
         cJSON *discovery_content;
+
+        HAL::WiFiMesh::device_info_t self_info;
 
     public:
         static void Prefix(const char *prefix);

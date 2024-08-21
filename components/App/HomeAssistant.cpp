@@ -22,9 +22,9 @@ void App::HomeAssistant::Init(const char *where, entity_type_t type, const char 
     ESP_LOGI(TAG, "command_topic: %s", this->command_topic);
 
     if(discovery) {
-        this->discovery_topic = (char*)malloc(TOPIC_MAX_NUM);
+        this->discovery_topic = (char*)malloc(MQTT_TOPIC_MAX_NUM);
 
-        memset(this->discovery_topic, 0, TOPIC_MAX_NUM);
+        memset(this->discovery_topic, 0, MQTT_TOPIC_MAX_NUM);
         sprintf(buffer, "%s-%s", where, name);
         sprintf(this->discovery_topic, "%s/%s/%s/config", g_prefix, type2str[type], buffer);
         ESP_LOGI(TAG, "discovery_topic: %s", this->discovery_topic);
@@ -35,11 +35,11 @@ void App::HomeAssistant::Init(const char *where, entity_type_t type, const char 
         cJSON_AddStringToObject(this->discovery_content, "command_topic", this->command_topic);
         cJSON_AddStringToObject(this->discovery_content, "unique_id", buffer);
 
-        wifi_mesh->GetMQTT().Subscribe(this->online_topic, 0);
-        wifi_mesh->GetMQTT().Subscribe(this->offline_topic, 0);
+        wifi_mesh->Subscribe((char*)this->online_topic, 0);
+        wifi_mesh->Subscribe((char*)this->offline_topic, 0);
     }
 
-    wifi_mesh->GetMQTT().Subscribe(this->command_topic, 0);
+    wifi_mesh->Subscribe(this->command_topic, 0);
 }
 
 App::HomeAssistant::HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name)
@@ -52,7 +52,9 @@ App::HomeAssistant::HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity
         return;
     this->wifi_mesh = mesh;
     this->Init(where, type, name, discovery);
-    this->wifi_mesh->BindingCallback(App::HomeAssistant::Process, HAL::WiFiMesh::EVENT_DATA, (void*)this);
+    this->wifi_mesh->BindingCallback(App::HomeAssistant::Process,
+                                     HAL::WiFiMesh::EVENT_DATA | HAL::WiFiMesh::EVENT_UPLOAD_DEVICE_INFO,
+                                     (void*)this);
 }
 
 App::HomeAssistant::~HomeAssistant() {
@@ -78,31 +80,35 @@ void App::HomeAssistant::GetTopic(char *dst, const char *suffix) {
 }
 
 void App::HomeAssistant::Process(HAL::WiFiMesh::event_t event, void *data, void *arg) {
-    auto *ha = (App::HomeAssistant*)arg;
-    HAL::MQTT::msg_t msg{};
-    if(event == HAL::WiFiMesh::EVENT_DATA) {
-        auto *r_msg = (HAL::MQTT::msg_t*)data;
+    auto *ha = (App::HomeAssistant *) arg;
+    auto *mesh_msg = (HAL::WiFiMesh::msg_t *)data;
+    if (event == HAL::WiFiMesh::EVENT_DATA) {
+        HAL::MQTT::msg_t msg{};
+        auto *r_msg = (HAL::MQTT::msg_t *) data;
 
-        if(strncmp(ha->online_topic, r_msg->topic, r_msg->topic_len) == 0) {
-            if(strncmp(ha->online_content, r_msg->data, r_msg->len) == 0) {
-                printf("online\n");
-                msg.topic = ha->discovery_topic;
-                msg.data = cJSON_Print(ha->discovery_content);
+        if (strncmp(ha->online_topic, r_msg->topic, r_msg->topic_len) == 0) {
+            if (strncmp(ha->online_content, r_msg->data, r_msg->len) == 0) {
+                ESP_LOGI(TAG, "online");
+                strcpy(msg.topic, ha->discovery_topic);
+                strcpy(msg.data, cJSON_Print(ha->discovery_content));
                 msg.qos = 0;
 
-                HAL::WiFiMesh::msg_t mesh_msg{};
-                mesh_msg.data = &msg;
-                mesh_msg.len = sizeof(HAL::MQTT::msg_t);
-                mesh_msg.type = HAL::WiFiMesh::MSG_MQTT;
-                ha->wifi_mesh->Publish(mesh_msg);
+                ha->wifi_mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t), HAL::WiFiMesh::MSG_MQTT);
             }
-        } else if(strncmp(ha->offline_topic, r_msg->topic, r_msg->topic_len) == 0) {
-            if(strncmp(ha->offline_content, r_msg->data, r_msg->len) == 0) {
-                printf("offline\n");
+        } else if (strncmp(ha->offline_topic, r_msg->topic, r_msg->topic_len) == 0) {
+            if (strncmp(ha->offline_content, r_msg->data, r_msg->len) == 0) {
+                ESP_LOGI(TAG, "offline");
             }
         }
+    } else if(event == HAL::WiFiMesh::EVENT_UPLOAD_DEVICE_INFO) {
+        ESP_LOGI(TAG, "I need to upload self info");
+        /* upload self info so that the root can send
+        * message to this device through some topic that this device has */
+        /* mesh rely on mac address to send */
+        memcpy((uint8_t*)&ha->self_info.mac, mesh_msg->data, sizeof(mesh_addr_t));
+        ha->GetTopic(ha->self_info.unique_id, "");
+        ha->wifi_mesh->Publish( &ha->self_info, sizeof(HAL::WiFiMesh::device_info_t), HAL::WiFiMesh::MSG_UPLOAD_DEVICE_INFO);
     }
 }
-
 
 

@@ -4,41 +4,29 @@
 
 #include "Switch.h"
 
+#define TAG "[App::Switch]"
+
 static void update_status(HAL::WiFiMesh *mesh, char *status_topic, bool status) {
     HAL::MQTT::msg_t msg{};
 
-    msg.data = (char*)(status ? "ON" : "OFF");
+    strcpy(msg.data, status ? "ON" : "OFF");
+    strcpy(msg.topic, status_topic);
     msg.retain = 1;
     msg.qos = 0;
-    msg.topic = status_topic;
 
-    HAL::WiFiMesh::msg_t mesh_msg{};
-    mesh_msg.data = &msg;
-    mesh_msg.len = sizeof(HAL::MQTT::msg_t);
-    mesh_msg.type = HAL::WiFiMesh::MSG_MQTT;
-    mesh->Publish(mesh_msg);
+    mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t), HAL::WiFiMesh::MSG_MQTT);
 }
 
 App::Switch::Switch(HAL::WiFiMesh *mesh, const char *where, const char *name)
         : HomeAssistant(mesh, where, App::HomeAssistant::SWITCH, name) {
     this->wifi_mesh->BindingCallback(App::Switch::Process, HAL::WiFiMesh::EVENT_DATA, (void*)this);
     this->GetTopic(this->status_topic, "status");
-
     cJSON_AddStringToObject(this->discovery_content, "state_topic", this->status_topic);
     cJSON_AddBoolToObject(this->discovery_content, "optimistic", false);
-
     HAL::MQTT::msg_t msg{};
-    msg.topic = this->discovery_topic;
-    msg.data = cJSON_Print(this->discovery_content);
-    msg.qos = 0;
-
-    printf("%s\n", msg.data);
-    
-    HAL::WiFiMesh::msg_t mesh_msg{};
-    mesh_msg.data = &msg;
-    mesh_msg.len = sizeof(HAL::MQTT::msg_t);
-    mesh_msg.type = HAL::WiFiMesh::MSG_MQTT;
-    mesh->Publish(mesh_msg);
+    strcpy(msg.topic, this->discovery_topic);
+    strcpy(msg.data, cJSON_Print(this->discovery_content));
+    this->wifi_mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t), HAL::WiFiMesh::MSG_MQTT);
 }
 
 void App::Switch::Process(HAL::WiFiMesh::event_t event, void *data, void *arg) {
@@ -54,12 +42,18 @@ void App::Switch::Process(HAL::WiFiMesh::event_t event, void *data, void *arg) {
                 return;
             }
 
-            update_status(sw->wifi_mesh, sw->status_topic, sw->sw_status);
+            sw->Act(false);
         }
     }
 }
 
 void App::Switch::Act() {
-    this->sw_status = this->sw_status ? false : true;
+    this->Act(true);
+}
+
+void App::Switch::Act(bool set_value) {
+    ESP_LOGI(TAG, "Act");
+    if(set_value)
+        this->sw_status = !this->sw_status;
     update_status(this->wifi_mesh, this->status_topic, this->sw_status);
 }

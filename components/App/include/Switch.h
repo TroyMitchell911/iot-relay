@@ -12,12 +12,13 @@ namespace App {
 
     private:
         bool sw_status = false;
-        char status_topic[TOPIC_MAX_NUM];
+        char status_topic[MQTT_TOPIC_MAX_NUM];
     private:
         static void Process(HAL::WiFiMesh::event_t event, void *data, void *arg);
     public:
         Switch(HAL::WiFiMesh *mesh, const char *where, const char *name);
         void Act();
+        void Act(bool set_value);
     };
 }
 
