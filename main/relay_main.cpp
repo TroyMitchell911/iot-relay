@@ -40,6 +40,7 @@ static void wifi_event(HAL::WiFiMesh::event_t event_id, void *event_data, void *
         mqtt->BindingCallback(mqtt_event, HAL::MQTT::EVENT_CONNECTED, nullptr);
         mqtt->Start();
     } else if(event_id == HAL::WiFiMesh::EVENT_CONNECTED) {
+        delete mqtt;
         HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
         sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
     }
