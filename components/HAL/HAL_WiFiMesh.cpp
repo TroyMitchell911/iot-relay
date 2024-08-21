@@ -197,26 +197,29 @@ void HAL::WiFiMesh::Publish(HAL::WiFiMesh::msg_t &msg) {
     if(esp_mesh_is_root()) {
         /* mqtt send */
         if(mqtt) {
-            ESP_LOGI(TAG, "Publish through MQTT type: 0x%x", msg.type);
             if(msg.type == MSG_MQTT && msg.mac == nullptr) {
                 mqtt->Publish(*(HAL::MQTT::msg_t*)msg.data);
-                return;
+                goto publish_out;
             } else if(msg.type == MSG_SUBSCRIBE) {
                 auto *sub_msg = (subscribe_msg_t *)msg.data;
                 mqtt->Subscribe(sub_msg->topic, sub_msg->qos);
-                return;
+                goto publish_out;
             } else if(msg.type == MSG_UNSUBSCRIBE) {
                 auto *sub_msg = (subscribe_msg_t *)msg.data;
                 mqtt->Unsubscirbe(sub_msg->topic);
-                return;
+                goto publish_out;
             }
+            goto publish_mesh;
+publish_out:
+            ESP_LOGI(TAG, "Publish through MQTT type: 0x%x", msg.type);
+            return;
         } else {
             ESP_LOGE(TAG, "MQTT client is a null pointer %p", mqtt);
             return;
         }
     }
-
-    ESP_LOGI(TAG, "Publish through Mesh-Network type: 0x%x to: %p", msg.type, msg.mac);
+publish_mesh:
+    ESP_LOGI(TAG, "Publish through Mesh-Network type: 0x%x", msg.type);
 //    ESP_LOGI(TAG, "Publish through Mesh-Network type: 0x%x to:" MACSTR"", msg.type, MAC2STR(msg.mac->addr));
     auto *s_msg = (HAL::WiFiMesh::msg_t*)malloc(sizeof(msg_t));
     memcpy(s_msg, &msg, sizeof(msg_t));
@@ -321,6 +324,7 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
     mesh_addr_t id{};
     static uint16_t last_layer = 0;
     auto *wifi_mesh = (HAL::WiFiMesh*)arg;
+    static mesh_addr_t child_mac;
 
     switch (event_id) {
         case MESH_EVENT_STARTED: {
@@ -341,12 +345,9 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "<MESH_EVENT_CHILD_CONNECTED>aid:%d, " MACSTR"",
                      child_connected->aid,
                      MAC2STR(child_connected->mac));
-            if(!esp_mesh_is_root()) {
-                mesh_addr_t child_mac;
-                memcpy(child_mac.addr, child_connected->mac, sizeof(child_mac.addr));
-                wifi_mesh->Publish(&child_mac, sizeof(mesh_addr_t), MSG_UPLOAD_DEVICE_INFO, &child_mac);
-//                HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_UPLOAD_DEVICE_INFO, nullptr);
-            }
+            memcpy(child_mac.addr, child_connected->mac, sizeof(child_mac.addr));
+            wifi_mesh->Publish(&child_mac, sizeof(mesh_addr_t), MSG_UPLOAD_DEVICE_INFO, &child_mac);
+
         }
             break;
         case MESH_EVENT_CHILD_DISCONNECTED: {

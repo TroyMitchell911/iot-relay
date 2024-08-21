@@ -72,11 +72,11 @@ void HAL::MQTT::AttachEvent(HAL::MQTT::callback_t cb, uint32_t id) {
 }
 
 void HAL::MQTT::Publish(HAL::MQTT::msg_t &msg) {
-    ESP_LOGD(TAG, "msg.data: %s", msg.data);
-    ESP_LOGD(TAG, "msg.topic: %s", msg.topic);
-    ESP_LOGD(TAG, "msg.len: %d", msg.len);
-    ESP_LOGD(TAG, "msg.qos: %d", msg.qos);
-    ESP_LOGD(TAG, "msg.retain: %d", msg.retain);
+    ESP_LOGI(TAG, "Publish: \n\tdata: %s\n\t"\
+                "topic: %s\n\t"\
+                "len: %d\n\t"\
+                "qos: %d\n\t"\
+                "retain: %d", msg.data, msg.topic, msg.len, msg.qos, msg.retain);
     xQueueSend(this->mqtt_msg_queue, &msg, MQTT_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
 }
 
@@ -85,7 +85,6 @@ void HAL::MQTT::SendTask(void *arg) {
     HAL::MQTT::msg_t msg;
     for(;;) {
         if(xQueueReceive(mqtt->mqtt_msg_queue, &msg, portMAX_DELAY) == pdTRUE) {
-            ESP_LOGI(TAG, "xQueueReceived");
             esp_mqtt_client_publish(mqtt->mqtt_client,
                                     msg.topic,
                                     msg.data,
