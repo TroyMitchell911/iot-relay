@@ -99,6 +99,8 @@ namespace HAL {
         static void MeshEventHandle(void *arg, esp_event_base_t event_base,
                                     int32_t event_id, void *event_data);
         static void RunCallback(void *arg, HAL::WiFiMesh::event_t event, void *data);
+        void Broadcast(bool to_root, void *data, size_t size, msg_type_t type);
+        void Broadcast(void *data, size_t size, msg_type_t type);
 
         [[noreturn]] static void SendTask(void *arg);
         [[noreturn]] static void RecvTask(void *arg);

@@ -311,6 +311,7 @@ void HAL::WiFiMesh::MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *
         }
         /* broadcast here */
 //        RunCallback(arg, HAL::WiFiMesh::EVENT_DATA, data);
+        wifi_mesh->Broadcast(data, sizeof(HAL::MQTT::msg_t), MSG_MQTT);
     }
 }
 
@@ -568,4 +569,22 @@ void HAL::WiFiMesh::Unsubscribe(char *topic) {
     strcpy(unsub_msg.topic, topic);
 
     this->Publish(&unsub_msg, sizeof(subscribe_msg_t), MSG_UNSUBSCRIBE);
+}
+
+// TODO: TEST Broadcast
+void HAL::WiFiMesh::Broadcast(bool to_root, void *data, size_t size, msg_type_t type) {
+    mesh_addr_t route_table[CONFIG_MESH_ROUTE_TABLE_SIZE];
+    int route_table_size = 0;
+    esp_err_t err;
+
+    esp_mesh_get_routing_table((mesh_addr_t *) &route_table,
+                               CONFIG_MESH_ROUTE_TABLE_SIZE * 6, &route_table_size);
+
+    for (int i = to_root ? 0 : 1; i < route_table_size; i++) {
+        this->Publish(data, size, type, &route_table[i]);
+    }
+}
+
+void HAL::WiFiMesh::Broadcast(void *data, size_t size, msg_type_t type) {
+    this->Broadcast(false, data, size, type);
 }
