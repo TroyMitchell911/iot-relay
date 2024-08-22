@@ -17,6 +17,7 @@ namespace App {
         static void Process(HAL::WiFiMesh::event_t event, void *data, void *arg);
     public:
         Switch(HAL::WiFiMesh *mesh, const char *where, const char *name);
+        void Init() override;
         void Act();
         void Act(bool set_value);
     };

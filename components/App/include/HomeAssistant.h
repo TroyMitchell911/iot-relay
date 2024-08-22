@@ -46,7 +46,7 @@ namespace App {
         void GetTopic(char *dst, const char *suffix);
 
     public:
-        void Init();
+        virtual void Init();
 
         HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name);
         HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name, bool discovery);
