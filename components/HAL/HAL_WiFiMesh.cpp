@@ -259,8 +259,10 @@ void HAL::WiFiMesh::RecvTask(void *arg) {
         ESP_LOGD(TAG, "RecvTask: \n\ttype: %d\n\tsize:%d", msg.type, msg.len);
         switch(msg.type) {
             case MSG_MQTT:
-                /* Publish */
-                if(esp_mesh_is_root())
+                if(esp_mesh_is_root() && memcmp(from.addr, wifi_mesh->root_mac.addr, sizeof(from.addr)) != 0)
+                    /* When MQTTEventHandle sends a message through the mesh, there are two cases:
+                     * 1. It is the root topic, in which case the root callback function needs to handle it
+                     * 2. It is the child topic, in which case it needs to be sent through the mesh */
                     wifi_mesh->Publish(msg);
                 else
                     HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, HAL::WiFiMesh::EVENT_DATA, &msg);
@@ -298,6 +300,7 @@ void HAL::WiFiMesh::RecvTask(void *arg) {
 void HAL::WiFiMesh::MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *arg) {
     auto* wifi_mesh = (WiFiMesh*)arg;
     if(event == HAL::MQTT::EVENT_DATA) {
+        /* root node also in this list */
         auto *r_msg = (HAL::MQTT::msg_t *) data;
         for (auto & it : wifi_mesh->device_info_table) {
             if (strncmp(r_msg->topic, it->unique_id, strlen(it->unique_id)) == 0) {
@@ -306,8 +309,8 @@ void HAL::WiFiMesh::MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *
                 return;
             }
         }
-        /* It's a message for root node */
-        RunCallback(arg, HAL::WiFiMesh::EVENT_DATA, data);
+        /* broadcast here */
+//        RunCallback(arg, HAL::WiFiMesh::EVENT_DATA, data);
     }
 }
 
@@ -392,6 +395,12 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             if (esp_mesh_is_root()) {
                 esp_netif_dhcpc_stop(wifi_mesh->netif_sta);
                 esp_netif_dhcpc_start(wifi_mesh->netif_sta);
+                msg_t msg{};
+                /* record the root mac address */
+                esp_read_mac(wifi_mesh->root_mac.addr, ESP_MAC_WIFI_STA);
+                memcpy(msg.data, &wifi_mesh->root_mac, sizeof(mesh_addr_t));
+                /* root run callback to upload self info directly */
+                HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_UPLOAD_DEVICE_INFO, &msg);
             } else {
                 HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_CONNECTED, nullptr);
             }

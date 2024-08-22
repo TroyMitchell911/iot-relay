@@ -90,6 +90,8 @@ namespace HAL {
         HAL::MQTT* mqtt = nullptr;
         std::list<device_info_t*> device_info_table;
 
+        mesh_addr_t root_mac;
+
     private:
         static void IPEventHandle(void *arg, esp_event_base_t event_base,
                                    int32_t event_id, void *event_data);
