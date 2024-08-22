@@ -22,16 +22,13 @@
 
 #define TAG "[main]"
 
-
-
 static HAL::MQTT *mqtt;
-static App::HomeAssistant *ha;
 static App::Switch *sw;
+static HAL::GPIO::gpio_state_t key_state;
 
 static void mqtt_event(HAL::MQTT::event_t event, void *data, void *arg) {
     if(event == HAL::MQTT::EVENT_CONNECTED) {
-        HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
-        sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
+        sw->Init();
     }
 }
 #include "ca_emqx_troy_home.crt"
@@ -41,12 +38,9 @@ static void wifi_event(HAL::WiFiMesh::event_t event_id, void *event_data, void *
         mqtt->Start();
     } else if(event_id == HAL::WiFiMesh::EVENT_CONNECTED) {
         delete mqtt;
-        HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
-        sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
+        sw->Init();
     }
 }
-
-HAL::GPIO::gpio_state_t key_state;
 
 extern "C" {
 __attribute__((noreturn)) void app_main(void) {
@@ -63,6 +57,10 @@ __attribute__((noreturn)) void app_main(void) {
     key_state = key->Get();
 
     HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
+    sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE,
+                         CONFIG_DEVICE_NAME,
+                         CONFIG_SWITCH_GPIO_NUM,
+                         CONFIG_SWITCH_ACTIVE_STATE);
     mesh.BindingCallback(wifi_event, nullptr);
     HAL::WiFiMesh::cfg_t mesh_cfg{};
     mesh_cfg.max_connections = CONFIG_MESH_AP_CONNECTIONS;
@@ -85,14 +83,13 @@ __attribute__((noreturn)) void app_main(void) {
     ESP_LOGI(TAG, "mqtt client pointer: %p", mqtt);
     mesh.SetMQTT(mqtt);
     mesh.Start(&mesh_cfg);
-//    sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE, CONFIG_DEVICE_NAME);
 
     for(;;){
-//        if(key->Get() != key_state) {
-//
-//            key_state = key->Get();
-//            sw->Act();
-//        }
+        if(key->Get() != key_state) {
+
+            key_state = key->Get();
+            sw->Act();
+        }
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }

@@ -184,19 +184,35 @@ menu "IOT Relay Config"
         endmenu
     endmenu
 
-    menu "Deivce Unique in home"
+    menu "IOT Device Info"
+        menu "Deivce Unique in home"
 
-        config DEVICE_WHERE
-            string "Where is this device"
-            default "bedroom"
-            help
-                Where is this device
+            config DEVICE_WHERE
+                string "Where is this device"
+                default "bedroom"
+                help
+                    Where is this device
 
-        config DEVICE_NAME
-            string "What is the device name"
-            default "switch"
-            help
-                What is the device name
+            config DEVICE_NAME
+                string "What is the device name"
+                default "switch"
+                help
+                    What is the device name
+        endmenu
 
+        menu "Hardware Resource"
+            config SWITCH_GPIO_NUM
+                int "GPIO number"
+                default 11
+                help
+                    GPIO number
+
+            config SWITCH_ACTIVE_STATE
+                int "active state"
+                range 0 1
+                default 0
+                help
+                    active state
+        endmenu
     endmenu
 endmenu
