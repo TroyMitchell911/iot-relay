@@ -40,11 +40,13 @@ namespace App {
         static void Prefix(const char *prefix);
 
     private:
-        void Init(const char *where, entity_type_t type, const char *name, bool discovery);
         static void Process(HAL::WiFiMesh::event_t event, void *data, void *arg);
 
-    public:
+    protected:
         void GetTopic(char *dst, const char *suffix);
+
+    public:
+        void Init();
 
         HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name);
         HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name, bool discovery);

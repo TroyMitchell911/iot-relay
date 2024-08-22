@@ -11,27 +11,23 @@ static const char *type2str[] = {"light", "switch"};
 
 static const char *g_prefix = "homeassistant";
 
-void App::HomeAssistant::Init(const char *where, entity_type_t type, const char *name, bool discovery) {
+void App::HomeAssistant::Init() {
     char buffer[32];
-
-    this->entity_where = where;
-    this->entity_name = name;
-    this->entity_type = type;
 
     this->GetTopic(this->command_topic, "command");
     ESP_LOGI(TAG, "command_topic: %s", this->command_topic);
 
-    if(discovery) {
+    if(this->entity_discovery) {
         this->discovery_topic = (char*)malloc(MQTT_TOPIC_MAX_NUM);
 
         memset(this->discovery_topic, 0, MQTT_TOPIC_MAX_NUM);
-        sprintf(buffer, "%s-%s", where, name);
-        sprintf(this->discovery_topic, "%s/%s/%s/config", g_prefix, type2str[type], buffer);
+        sprintf(buffer, "%s-%s", this->entity_where, this->entity_name);
+        sprintf(this->discovery_topic, "%s/%s/%s/config", g_prefix, type2str[this->entity_type], buffer);
         ESP_LOGI(TAG, "discovery_topic: %s", this->discovery_topic);
 
         this->discovery_content = cJSON_CreateObject();
         cJSON_AddStringToObject(this->discovery_content, "name", buffer);
-        cJSON_AddStringToObject(this->discovery_content, "device_class", type2str[type]);
+        cJSON_AddStringToObject(this->discovery_content, "device_class", type2str[this->entity_type]);
         cJSON_AddStringToObject(this->discovery_content, "command_topic", this->command_topic);
         cJSON_AddStringToObject(this->discovery_content, "unique_id", buffer);
 
@@ -51,10 +47,14 @@ App::HomeAssistant::HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity
     if(type >= ENTITY_TYPE_MAX)
         return;
     this->wifi_mesh = mesh;
-    this->Init(where, type, name, discovery);
     this->wifi_mesh->BindingCallback(App::HomeAssistant::Process,
                                      HAL::WiFiMesh::EVENT_DATA | HAL::WiFiMesh::EVENT_UPLOAD_DEVICE_INFO,
                                      (void*)this);
+
+    this->entity_where = where;
+    this->entity_name = name;
+    this->entity_type = type;
+    this->entity_discovery = discovery;
 }
 
 App::HomeAssistant::~HomeAssistant() {
