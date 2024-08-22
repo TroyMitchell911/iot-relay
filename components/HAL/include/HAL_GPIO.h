@@ -58,6 +58,9 @@ namespace HAL{
         GPIO(uint32_t pin);
 #endif
         explicit GPIO(HAL::GPIO::gpio_cfg_t gpiocfg);
+
+        GPIO();
+
         ~GPIO();
 
     public:

@@ -6,6 +6,7 @@
 #define RELAY_SWITCH_H
 
 #include "HomeAssistant.h"
+#include "HAL.h"
 
 namespace App {
     class Switch : private App::HomeAssistant{
@@ -13,13 +14,22 @@ namespace App {
     private:
         bool sw_status = false;
         char status_topic[MQTT_TOPIC_MAX_NUM];
+        HAL::GPIO *gpio;
+        HAL::GPIO::gpio_state_t active_state;
+
     private:
+        void InitGPIO(int gpio_num, int _active_state);
         static void Process(HAL::WiFiMesh::event_t event, void *data, void *arg);
+
     public:
-        Switch(HAL::WiFiMesh *mesh, const char *where, const char *name);
         void Init() override;
+        Switch(HAL::WiFiMesh *mesh,
+               const char *where,
+               const char *name,
+               int gpio_num,
+               int active_state);
         void Act();
-        void Act(bool set_value);
+        void Act(bool is_changing_value);
     };
 }
 
