@@ -27,8 +27,8 @@ namespace HAL{
         }gpio_mode_t;
 
         typedef enum {
-            GPIO_STATE_HIGH,
             GPIO_STATE_LOW,
+            GPIO_STATE_HIGH,
             GPIO_STATE_NONE,
         }gpio_state_t;
 

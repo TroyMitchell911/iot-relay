@@ -120,15 +120,6 @@ void HAL::WiFiMesh::BindingCallback(HAL::WiFiMesh::callback_t cb, uint32_t event
     s_callback_t s_callback = {.callback = cb, .event_mask = event, .arg = arg, .pthis = (void*)this};
 
     this->callback.push_back(s_callback);
-
-    if((event & EVENT_UPLOAD_DEVICE_INFO) && esp_mesh_is_root()) {
-        msg_t msg{};
-        /* record the root mac address */
-        esp_read_mac(this->root_mac.addr, ESP_MAC_WIFI_STA);
-        memcpy(msg.data, &this->root_mac, sizeof(mesh_addr_t));
-        /* root run callback to upload self info directly */
-        s_callback.callback(EVENT_UPLOAD_DEVICE_INFO, &msg, arg);
-    }
 }
 
 void HAL::WiFiMesh::AttachEvent(HAL::WiFiMesh::callback_t cb, uint32_t event) {
@@ -405,6 +396,13 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             if (esp_mesh_is_root()) {
                 esp_netif_dhcpc_stop(wifi_mesh->netif_sta);
                 esp_netif_dhcpc_start(wifi_mesh->netif_sta);
+
+                msg_t msg{};
+                /* record the root mac address */
+                esp_read_mac(wifi_mesh->root_mac.addr, ESP_MAC_WIFI_STA);
+                memcpy(msg.data, &wifi_mesh->root_mac, sizeof(mesh_addr_t));
+                /* root run callback to upload self info directly */
+                HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_UPLOAD_DEVICE_INFO, &msg);
             } else {
                 HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_CONNECTED, nullptr);
             }
