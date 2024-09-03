@@ -48,17 +48,9 @@ __attribute__((noreturn)) void app_main(void) {
 
     HAL::Init();
 
-    HAL::GPIO::gpio_cfg_t cfg;
-    cfg.pin = GPIO_NUM_20;
-    cfg.pull_up = 1;
-    cfg.direction = HAL::GPIO::GPIO_INPUT;
-    auto key = new HAL::GPIO(cfg);
-
-    key_state = key->Get();
-
     HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
-    sw = new App::Switch(&mesh, CONFIG_DEVICE_WHERE,
-                         CONFIG_DEVICE_NAME,
+    sw = new App::Switch(&mesh, CONFIG_SWITCH_DEVICE_WHERE,
+                         CONFIG_SWITCH_DEVICE_NAME,
                          CONFIG_SWITCH_GPIO_NUM,
                          CONFIG_SWITCH_ACTIVE_STATE);
     mesh.BindingCallback(wifi_event, nullptr);
@@ -71,6 +63,8 @@ __attribute__((noreturn)) void app_main(void) {
 //    mesh_cfg.router_pwd = "hbishbis";
 //    mesh_cfg.router_ssid = "troy-phone";
 //    mesh_cfg.router_pwd = "jianglin998";
+//    mesh_cfg.router_ssid = "jl-wifi";
+//    mesh_cfg.router_pwd = "jianglin2022";
     mesh_cfg.mesh_channel = CONFIG_MESH_CHANNEL;
     mesh_cfg.max_layer = CONFIG_MESH_MAX_LAYER;
     for(unsigned char & i : mesh_cfg.mesh_id) {
@@ -85,11 +79,6 @@ __attribute__((noreturn)) void app_main(void) {
     mesh.Start(&mesh_cfg);
 
     for(;;){
-        if(key->Get() != key_state) {
-
-            key_state = key->Get();
-            sw->Act();
-        }
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }

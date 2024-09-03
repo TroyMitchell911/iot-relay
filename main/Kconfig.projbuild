@@ -187,15 +187,27 @@ menu "IOT Relay Config"
     menu "IOT Device Info"
         menu "Deivce Unique in home"
 
-            config DEVICE_WHERE
+            config SWITCH_DEVICE_WHERE
                 string "Where is this device"
                 default "bedroom"
                 help
                     Where is this device
 
-            config DEVICE_NAME
+            config SWITCH_DEVICE_NAME
                 string "What is the device name"
                 default "switch"
+                help
+                    What is the device name
+
+            config BODY_SENSOR_WHERE
+                string "Where is this device"
+                    default "the-door"
+                    help
+                        Where is this device
+
+            config BODY_SENSOR_WHERE
+                string "What is the body sensor name"
+                default "body-sensor"
                 help
                     What is the device name
         endmenu
@@ -203,11 +215,37 @@ menu "IOT Relay Config"
         menu "Hardware Resource"
             config SWITCH_GPIO_NUM
                 int "GPIO number"
-                default 11
+                default 10
                 help
                     GPIO number
 
             config SWITCH_ACTIVE_STATE
+                int "active state"
+                range 0 1
+                default 0
+                help
+                    active state
+
+            config SWITCH_MANUAL_BUTTON_GPIO_NUM
+               int "GPIO number"
+               default 7
+               help
+                   GPIO number
+
+           config SWITCH_MANUAL_BUTTON_ACTIVE_STATE
+               int "active state"
+               range 0 1
+               default 0
+               help
+                   active state
+
+            config BODY_SENSOR_GPIO_NUM
+                int "GPIO number"
+                default 7
+                help
+                    GPIO number
+
+            config BODY_SENSOR_ACTIVE_STATE
                 int "active state"
                 range 0 1
                 default 0
