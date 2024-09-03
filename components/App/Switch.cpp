@@ -23,17 +23,19 @@ App::Switch::Switch(HAL::WiFiMesh *mesh,
                     int gpio_num,
                     int active_state)
         : HomeAssistant(mesh, where, App::HomeAssistant::SWITCH, name) {
+    this->switch_active_state = HAL::GPIO::gpio_state_t(active_state);
+
     HAL::GPIO::gpio_cfg_t cfg{};
     cfg.pin = gpio_num;
-    if(this->manual_button_active_state == HAL::GPIO::GPIO_STATE_HIGH)
+    if(this->switch_active_state == HAL::GPIO::GPIO_STATE_HIGH)
         cfg.pull_down = 1;
-    else if(this->manual_button_active_state == HAL::GPIO::GPIO_STATE_LOW)
+    else if(this->switch_active_state == HAL::GPIO::GPIO_STATE_LOW)
         cfg.pull_up = 1;
     cfg.direction = HAL::GPIO::GPIO_OUTPUT;
     cfg.mode = HAL::GPIO::GPIO_PP;
     this->switch_gpio = new HAL::GPIO(cfg);
 
-    this->switch_active_state = HAL::GPIO::gpio_state_t(active_state);
+
     this->switch_gpio->Set(HAL::GPIO::gpio_state_t(!this->switch_active_state));
 
     this->wifi_mesh->BindingCallback(App::Switch::Process, HAL::WiFiMesh::EVENT_DATA, (void*)this);
