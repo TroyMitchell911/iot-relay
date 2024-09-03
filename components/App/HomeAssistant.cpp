@@ -14,8 +14,7 @@ static const char *g_prefix = "homeassistant";
 void App::HomeAssistant::Init() {
     char buffer[32];
 
-    this->GetTopic(this->command_topic, "command");
-    ESP_LOGI(TAG, "command_topic: %s", this->command_topic);
+    this->GetTopic(this->status_topic, "status");
 
     if(this->entity_discovery) {
         this->discovery_topic = (char*)malloc(MQTT_TOPIC_MAX_NUM);
@@ -28,14 +27,12 @@ void App::HomeAssistant::Init() {
         this->discovery_content = cJSON_CreateObject();
         cJSON_AddStringToObject(this->discovery_content, "name", buffer);
         cJSON_AddStringToObject(this->discovery_content, "device_class", type2str[this->entity_type]);
-        cJSON_AddStringToObject(this->discovery_content, "command_topic", this->command_topic);
+        cJSON_AddStringToObject(this->discovery_content, "state_topic", this->status_topic);
         cJSON_AddStringToObject(this->discovery_content, "unique_id", buffer);
 
         wifi_mesh->Subscribe((char*)this->online_topic, 0);
         wifi_mesh->Subscribe((char*)this->offline_topic, 0);
     }
-
-    wifi_mesh->Subscribe(this->command_topic, 0);
 }
 
 App::HomeAssistant::HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name)
@@ -67,8 +64,6 @@ App::HomeAssistant::~HomeAssistant() {
         if(this->discovery_content)
             cJSON_Delete(this->discovery_content);
     }
-
-    wifi_mesh->GetMQTT().Unsubscirbe(this->command_topic);
 }
 
 void App::HomeAssistant::Prefix(const char *prefix) {

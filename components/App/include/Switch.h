@@ -13,7 +13,7 @@ namespace App {
 
     private:
         bool sw_status = false;
-        char status_topic[MQTT_TOPIC_MAX_NUM];
+        char command_topic[MQTT_TOPIC_MAX_NUM] = {0};
         HAL::GPIO *gpio;
         HAL::GPIO::gpio_state_t active_state;
 

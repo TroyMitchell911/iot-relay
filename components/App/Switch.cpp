@@ -26,7 +26,7 @@ App::Switch::Switch(HAL::WiFiMesh *mesh,
     this->InitGPIO(gpio_num, active_state);
 
     this->wifi_mesh->BindingCallback(App::Switch::Process, HAL::WiFiMesh::EVENT_DATA, (void*)this);
-    this->GetTopic(this->status_topic, "status");
+    this->GetTopic(this->command_topic, "command");
 }
 
 void App::Switch::Process(HAL::WiFiMesh::event_t event, void *data, void *arg) {
@@ -62,12 +62,13 @@ void App::Switch::Act(bool is_changing_value) {
 void App::Switch::Init() {
     HomeAssistant::Init();
 
-    cJSON_AddStringToObject(this->discovery_content, "state_topic", this->status_topic);
+    cJSON_AddStringToObject(this->discovery_content, "command_topic", this->command_topic);
     cJSON_AddBoolToObject(this->discovery_content, "optimistic", false);
     HAL::MQTT::msg_t msg{};
     strcpy(msg.topic, this->discovery_topic);
     strcpy(msg.data, cJSON_Print(this->discovery_content));
     this->wifi_mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t), HAL::WiFiMesh::MSG_MQTT);
+    this->wifi_mesh->Subscribe(this->command_topic);
 }
 
 void App::Switch::InitGPIO(int gpio_num, int _active_state) {
