@@ -7,7 +7,7 @@
 
 #define TAG "[App::HomeAssistant]"
 
-static const char *type2str[] = {"light", "switch"};
+static const char *type2str[] = {"light", "switch", "binary_sensor"};
 
 static const char *g_prefix = "homeassistant";
 

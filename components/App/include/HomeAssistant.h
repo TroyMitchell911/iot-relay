@@ -14,6 +14,7 @@ namespace App {
         typedef enum {
             LIGHT,
             SWITCH,
+            BINARY_SENSOR,
             ENTITY_TYPE_MAX
         }entity_type_t;
 
