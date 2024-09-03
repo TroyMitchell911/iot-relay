@@ -52,7 +52,9 @@ __attribute__((noreturn)) void app_main(void) {
     sw = new App::Switch(&mesh, CONFIG_SWITCH_DEVICE_WHERE,
                          CONFIG_SWITCH_DEVICE_NAME,
                          CONFIG_SWITCH_GPIO_NUM,
-                         CONFIG_SWITCH_ACTIVE_STATE);
+                         CONFIG_SWITCH_ACTIVE_STATE,
+                         CONFIG_SWITCH_MANUAL_BUTTON_GPIO_NUM,
+                         CONFIG_SWITCH_MANUAL_BUTTON_ACTIVE_STATE);
     mesh.BindingCallback(wifi_event, nullptr);
     HAL::WiFiMesh::cfg_t mesh_cfg{};
     mesh_cfg.max_connections = CONFIG_MESH_AP_CONNECTIONS;
