@@ -23,10 +23,46 @@ App::Switch::Switch(HAL::WiFiMesh *mesh,
                     int gpio_num,
                     int active_state)
         : HomeAssistant(mesh, where, App::HomeAssistant::SWITCH, name) {
-    this->InitGPIO(gpio_num, active_state);
+    HAL::GPIO::gpio_cfg_t cfg{};
+    cfg.pin = gpio_num;
+    if(this->manual_button_active_state == HAL::GPIO::GPIO_STATE_HIGH)
+        cfg.pull_down = 1;
+    else if(this->manual_button_active_state == HAL::GPIO::GPIO_STATE_LOW)
+        cfg.pull_up = 1;
+    cfg.direction = HAL::GPIO::GPIO_OUTPUT;
+    cfg.mode = HAL::GPIO::GPIO_PP;
+    this->switch_gpio = new HAL::GPIO(cfg);
+
+    this->switch_active_state = HAL::GPIO::gpio_state_t(active_state);
+    this->switch_gpio->Set(HAL::GPIO::gpio_state_t(!this->switch_active_state));
 
     this->wifi_mesh->BindingCallback(App::Switch::Process, HAL::WiFiMesh::EVENT_DATA, (void*)this);
     this->GetTopic(this->command_topic, "command");
+}
+
+App::Switch::Switch(HAL::WiFiMesh *mesh, const char *where, const char *name, int switch_gpio_num,
+                    int switch_active_state, int manual_button_gpio_num, int manual_button_active_state)
+        : Switch(mesh, where, name, switch_gpio_num, switch_active_state){
+    this->manual_button_active_state = HAL::GPIO::gpio_state_t(manual_button_active_state);
+
+    HAL::GPIO::gpio_cfg_t cfg{};
+    cfg.pin = manual_button_gpio_num;
+    if(this->manual_button_active_state == HAL::GPIO::GPIO_STATE_HIGH)
+        cfg.pull_down = 1;
+    else if(this->manual_button_active_state == HAL::GPIO::GPIO_STATE_LOW)
+        cfg.pull_up = 1;
+    cfg.direction = HAL::GPIO::GPIO_INPUT;
+    cfg.mode = HAL::GPIO::GPIO_PP;
+    this->manual_button_gpio = new HAL::GPIO(cfg);
+
+    this->manual_button_state = this->manual_button_gpio->Get();
+
+    xTaskCreate(App::Switch::ManualButtonTask,
+                "manual task",
+                8192,
+                (void*)this,
+                0,
+                &this->manual_button_task_handler);
 }
 
 void App::Switch::Process(HAL::WiFiMesh::event_t event, void *data, void *arg) {
@@ -55,7 +91,7 @@ void App::Switch::Act(bool is_changing_value) {
     ESP_LOGI(TAG, "Act");
     if(is_changing_value)
         this->sw_status = !this->sw_status;
-    gpio->Set(this->sw_status ? active_state : HAL::GPIO::gpio_state_t(!active_state));
+    switch_gpio->Set(this->sw_status ? switch_active_state : HAL::GPIO::gpio_state_t(!switch_active_state));
     update_status(this->wifi_mesh, this->status_topic, this->sw_status);
 }
 
@@ -71,16 +107,21 @@ void App::Switch::Init() {
     this->wifi_mesh->Subscribe(this->command_topic);
 }
 
-void App::Switch::InitGPIO(int gpio_num, int _active_state) {
-    HAL::GPIO::gpio_cfg_t cfg;
-    cfg.pin = gpio_num;
-    cfg.pull_up = 1;
-    cfg.direction = HAL::GPIO::GPIO_OUTPUT;
-    cfg.mode = HAL::GPIO::GPIO_PP;
-    this->gpio = new HAL::GPIO(cfg);
+void App::Switch::ManualButtonTask(void *arg) {
+    auto *sw = (App::Switch*)arg;
 
-    this->active_state = HAL::GPIO::gpio_state_t(_active_state);
-    this->gpio->Set(HAL::GPIO::gpio_state_t(!this->active_state));
+    for(;;) {
+        if(sw->manual_button_state != sw->manual_button_gpio->Get()) {
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+            if(sw->manual_button_state != sw->manual_button_gpio->Get()) {
+                sw->Act();
+                sw->manual_button_state = sw->manual_button_gpio->Get();
+            }
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
 }
+
+
 
 
