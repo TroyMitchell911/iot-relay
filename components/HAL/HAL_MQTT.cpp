@@ -26,6 +26,7 @@ HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const ch
     this->mqtt_cfg.broker.address.uri = uri;
     this->mqtt_cfg.broker.verification.certificate = (const char*) ca;
     this->mqtt_cfg.task.stack_size = 8192;
+    this->mqtt_cfg.session.keepalive = 60;
 }
 
 HAL::MQTT::~MQTT() {
@@ -45,7 +46,7 @@ void HAL::MQTT::Subscribe(const char *topic, uint8_t qos) {
     mqtt_topic.is_sub = true;
     strcpy(mqtt_topic.topic, topic);
     ESP_LOGI(TAG, "Subscribe %s", topic);
-    xQueueSend(this->mqtt_topic_queue, topic, MQTT_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
+    xQueueSend(this->mqtt_topic_queue, &mqtt_topic, MQTT_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
 }
 
 void HAL::MQTT::Unsubscirbe(const char *topic) {
@@ -53,6 +54,7 @@ void HAL::MQTT::Unsubscirbe(const char *topic) {
     mqtt_topic.is_sub = false;
     strcpy(mqtt_topic.topic, topic);
     ESP_LOGI(TAG, "Unsubscirbe %s", topic);
+    xQueueSend(this->mqtt_topic_queue, &mqtt_topic, MQTT_QUEUE_WAIT_TIME_MS / portTICK_PERIOD_MS);
 }
 
 void HAL::MQTT::BindingCallback(HAL::MQTT::callback_t cb, uint32_t id, void *arg) {
