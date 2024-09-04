@@ -19,16 +19,19 @@
 #include "Switch.h"
 #include "HAL_GPIO.h"
 #include "HAL.h"
+#include "BinarySensor.h"
 
 #define TAG "[main]"
 
 static HAL::MQTT *mqtt;
 static App::Switch *sw;
+static App::BinarySensor *bs;
 static HAL::GPIO::gpio_state_t key_state;
 
 static void mqtt_event(HAL::MQTT::event_t event, void *data, void *arg) {
     if(event == HAL::MQTT::EVENT_CONNECTED) {
         sw->Init();
+        bs->Init();
     }
 }
 #include "ca_emqx_troy_home.crt"
@@ -39,6 +42,7 @@ static void wifi_event(HAL::WiFiMesh::event_t event_id, void *event_data, void *
     } else if(event_id == HAL::WiFiMesh::EVENT_CONNECTED) {
         delete mqtt;
         sw->Init();
+        bs->Init();
     }
 }
 
@@ -55,6 +59,12 @@ __attribute__((noreturn)) void app_main(void) {
                          CONFIG_SWITCH_ACTIVE_STATE,
                          CONFIG_SWITCH_MANUAL_BUTTON_GPIO_NUM,
                          CONFIG_SWITCH_MANUAL_BUTTON_ACTIVE_STATE);
+
+    bs = new App::BinarySensor(&mesh, CONFIG_BODY_SENSOR_WHERE,
+                         CONFIG_BODY_SENSOR_NAME,
+                         CONFIG_BODY_SENSOR_GPIO_NUM,
+                         CONFIG_BODY_SENSOR_ACTIVE_STATE,
+                         App::BinarySensor::PRESENCE);
     mesh.BindingCallback(wifi_event, nullptr);
     HAL::WiFiMesh::cfg_t mesh_cfg{};
     mesh_cfg.max_connections = CONFIG_MESH_AP_CONNECTIONS;

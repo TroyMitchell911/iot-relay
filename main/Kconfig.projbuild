@@ -201,11 +201,11 @@ menu "IOT Relay Config"
 
             config BODY_SENSOR_WHERE
                 string "Where is this device"
-                    default "the-door"
+                    default "portal"
                     help
                         Where is this device
 
-            config BODY_SENSOR_WHERE
+            config BODY_SENSOR_NAME
                 string "What is the body sensor name"
                 default "body-sensor"
                 help
