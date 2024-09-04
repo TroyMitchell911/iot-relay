@@ -11,7 +11,7 @@ static void update_status(HAL::WiFiMesh *mesh, char *status_topic, bool status) 
 
     strcpy(msg.data, status ? "ON" : "OFF");
     strcpy(msg.topic, status_topic);
-    msg.retain = 1;
+    msg.retain = 0;
     msg.qos = 0;
 
     mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t), HAL::WiFiMesh::MSG_MQTT);
@@ -57,14 +57,14 @@ App::Switch::Switch(HAL::WiFiMesh *mesh, const char *where, const char *name, in
     cfg.mode = HAL::GPIO::GPIO_PP;
     this->manual_button_gpio = new HAL::GPIO(cfg);
 
-    this->manual_button_state = this->manual_button_gpio->Get();
-
     xTaskCreate(App::Switch::ManualButtonTask,
                 "manual task",
                 8192,
                 (void*)this,
                 0,
                 &this->manual_button_task_handler);
+
+    this->manual_button_state = this->manual_button_gpio->Get();
 }
 
 void App::Switch::Process(HAL::WiFiMesh::event_t event, void *data, void *arg) {
