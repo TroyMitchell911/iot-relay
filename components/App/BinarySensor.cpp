@@ -70,6 +70,9 @@ void App::BinarySensor::Init() {
 }
 
 void App::BinarySensor::Update() {
+    if(!this->inited)
+        return;
+
     HAL::MQTT::msg_t msg{};
 
     strcpy(msg.data, this->gpio_state == this->active_state ? "ON" : "OFF");
