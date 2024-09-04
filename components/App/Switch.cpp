@@ -94,7 +94,9 @@ void App::Switch::Act(bool is_changing_value) {
     if(is_changing_value)
         this->sw_status = !this->sw_status;
     switch_gpio->Set(this->sw_status ? switch_active_state : HAL::GPIO::gpio_state_t(!switch_active_state));
-    update_status(this->wifi_mesh, this->status_topic, this->sw_status);
+    /* send message when the remote is ok */
+    if(this->inited)
+        update_status(this->wifi_mesh, this->status_topic, this->sw_status);
 }
 
 void App::Switch::Init() {

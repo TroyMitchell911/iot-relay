@@ -33,6 +33,8 @@ void App::HomeAssistant::Init() {
         wifi_mesh->Subscribe((char*)this->online_topic, 0);
         wifi_mesh->Subscribe((char*)this->offline_topic, 0);
     }
+
+    this->inited = true;
 }
 
 App::HomeAssistant::HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name)

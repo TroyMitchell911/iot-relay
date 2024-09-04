@@ -31,12 +31,13 @@ namespace App {
         const char *entity_name;
         bool entity_discovery;
 
-//        char command_topic[MQTT_TOPIC_MAX_NUM] = {0};
         char status_topic[MQTT_TOPIC_MAX_NUM] = {0};
         char *discovery_topic;
         cJSON *discovery_content;
 
         HAL::WiFiMesh::device_info_t self_info;
+
+        bool inited = false;
 
     public:
         static void Prefix(const char *prefix);
