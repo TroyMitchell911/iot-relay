@@ -197,27 +197,63 @@ void HAL::MQTT::Publish(char *topic, char *data, int len, int qos, int retain) {
 }
 
 void HAL::MQTT::Start() {
-    this->mqtt_client = esp_mqtt_client_init(&this->mqtt_cfg);
-    /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
-    esp_mqtt_client_register_event(this->mqtt_client,
-                                   esp_mqtt_event_id_t(ESP_EVENT_ANY_ID),
-                                   HAL::MQTT::EventHandle,
-                                   (void*)this);
-    esp_mqtt_client_start(this->mqtt_client);
-    this->mqtt_event_group = xEventGroupCreate();
-    xTaskCreate(HAL::MQTT::SendTask,
-                "mesh send",
-                8192,
-                (void*)this,
-                0,
-                &this->mqtt_send_task_handler);
-    xTaskCreate(HAL::MQTT::SubTask,
-                "mesh send",
-                2048,
-                (void*)this,
-                0,
-                &this->mqtt_topic_task_handler);
+    if(this->started)
+        return;
 
+    ESP_LOGI(TAG, "Start");
+    if(!this->mqtt_client) {
+
+        /* First start */
+        this->mqtt_client = esp_mqtt_client_init(&this->mqtt_cfg);
+        /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
+        esp_mqtt_client_register_event(this->mqtt_client,
+                                       esp_mqtt_event_id_t(ESP_EVENT_ANY_ID),
+                                       HAL::MQTT::EventHandle,
+                                       (void*)this);
+    }
+
+    esp_mqtt_client_start(this->mqtt_client);
+
+    if(!this->mqtt_event_group)
+        this->mqtt_event_group = xEventGroupCreate();
+
+    if(!this->mqtt_send_task_handler)
+        xTaskCreate(HAL::MQTT::SendTask,
+                    "mesh send",
+                    8192,
+                    (void*)this,
+                    0,
+                    &this->mqtt_send_task_handler);
+    else
+        vTaskResume(this->mqtt_send_task_handler);
+
+    if(!this->mqtt_topic_task_handler)
+        xTaskCreate(HAL::MQTT::SubTask,
+                    "mesh send",
+                    2048,
+                    (void*)this,
+                    0,
+                    &this->mqtt_topic_task_handler);
+    else
+        vTaskResume(this->mqtt_topic_task_handler);
+
+    this->started = true;
+
+}
+
+void HAL::MQTT::Stop() {
+    if(!this->started)
+        return;
+
+    ESP_LOGW(TAG, "Stop");
+    if(mqtt_client)
+        esp_mqtt_client_stop(this->mqtt_client);
+    if(this->mqtt_send_task_handler)
+        vTaskSuspend(this->mqtt_send_task_handler);
+    if(this->mqtt_topic_task_handler)
+        vTaskSuspend(this->mqtt_topic_task_handler);
+
+    this->started = false;
 }
 
 void HAL::MQTT::SubTask(void *arg) {
