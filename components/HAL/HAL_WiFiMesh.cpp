@@ -28,10 +28,17 @@ void HAL::WiFiMesh::Start(HAL::WiFiMesh::cfg_t *config) {
     /*  wifi initialization */
     wifi_init_config_t wifi_config = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&wifi_config));
+
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT,
                                                IP_EVENT_STA_GOT_IP,
-                                               &HAL::WiFiMesh::IPEventHandle,
-                                               (void*)&this->callback));
+                                               &HAL::WiFiMesh::WiFiEventHandle,
+                                               (void*)this));
+
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT,
+                                               WIFI_EVENT_STA_DISCONNECTED,
+                                               &HAL::WiFiMesh::WiFiEventHandle,
+                                               (void*)this));
+
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
     ESP_ERROR_CHECK(esp_wifi_start());
 
@@ -315,11 +322,23 @@ void HAL::WiFiMesh::MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *
     }
 }
 
-void HAL::WiFiMesh::IPEventHandle(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+void HAL::WiFiMesh::WiFiEventHandle(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     auto *event = (ip_event_got_ip_t *) event_data;
-    ESP_LOGI(TAG, "<IP_EVENT_STA_GOT_IP>IP:" IPSTR, IP2STR(&event->ip_info.ip));
+    auto *mesh = (HAL::WiFiMesh*) arg;
 
-    RunCallback(arg, HAL::WiFiMesh::EVENT_GOT_IP, &event->ip_info.ip);
+    if(event_base == IP_EVENT) {
+        if(event_id == IP_EVENT_STA_GOT_IP) {
+            ESP_LOGI(TAG, "<IP_EVENT_STA_GOT_IP>IP:" IPSTR, IP2STR(&event->ip_info.ip));
+
+            mesh->mqtt->Start();
+
+            RunCallback(arg, HAL::WiFiMesh::EVENT_GOT_IP, &event->ip_info.ip);
+        }
+    } else if(event_base == WIFI_EVENT) {
+        if(event_id == WIFI_EVENT_STA_DISCONNECTED) {
+            mesh->mqtt->Stop();
+        }
+    }
 }
 
 void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,

@@ -93,7 +93,7 @@ namespace HAL {
         mesh_addr_t root_mac;
 
     private:
-        static void IPEventHandle(void *arg, esp_event_base_t event_base,
+        static void WiFiEventHandle(void *arg, esp_event_base_t event_base,
                                    int32_t event_id, void *event_data);
         static void MQTTEventHandle(HAL::MQTT::event_t event, void *data, void *arg);
         static void MeshEventHandle(void *arg, esp_event_base_t event_base,
