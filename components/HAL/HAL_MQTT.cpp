@@ -9,37 +9,6 @@
 
 #define MQTT_CONNECTED_BIT  BIT0
 
-HAL::MQTT::MQTT(const char *uri) : MQTT(uri, nullptr, nullptr, nullptr) {
-
-}
-
-HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) : MQTT(uri, username, pwd, nullptr) {
-
-}
-
-HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca) {
-    this->mqtt_msg_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(HAL::MQTT::msg_t));
-    this->mqtt_topic_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(mqtt_topic_t));
-
-    this->mqtt_cfg.credentials.username = username;
-    this->mqtt_cfg.credentials.authentication.password = pwd;
-    this->mqtt_cfg.broker.address.uri = uri;
-    this->mqtt_cfg.broker.verification.certificate = (const char*) ca;
-    this->mqtt_cfg.task.stack_size = 8192;
-    this->mqtt_cfg.session.keepalive = 60;
-}
-
-HAL::MQTT::~MQTT() {
-    if(this->mqtt_send_task_handler)
-        vTaskDelete(this->mqtt_send_task_handler);
-    if(this->mqtt_msg_queue)
-        vQueueDelete(this->mqtt_msg_queue);
-    if(this->mqtt_topic_task_handler)
-        vTaskDelete(this->mqtt_topic_task_handler);
-    if(this->mqtt_topic_queue)
-        vQueueDelete(this->mqtt_topic_queue);
-}
-
 void HAL::MQTT::Subscribe(const char *topic, uint8_t qos) {
     mqtt_topic_t mqtt_topic{};
     mqtt_topic.qos = qos;
@@ -132,11 +101,13 @@ void HAL::MQTT::EventHandle(void *handler_args, esp_event_base_t base, int32_t e
     switch (event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+            mqtt->status_led->Set(mqtt->status_led_activate);
             xEventGroupSetBits(mqtt->mqtt_event_group, MQTT_CONNECTED_BIT);
             RunCallback((void*)&mqtt->callback, HAL::MQTT::EVENT_CONNECTED, nullptr);
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+            mqtt->status_led->Set((GPIO::gpio_state_t )!mqtt->status_led_activate);
             break;
         case MQTT_EVENT_SUBSCRIBED:
             ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
@@ -275,4 +246,68 @@ void HAL::MQTT::SubTask(void *arg) {
             vTaskDelay(100 / portTICK_PERIOD_MS);
         }
     }
+}
+
+HAL::MQTT::MQTT(const char *uri) : MQTT(uri, nullptr, nullptr, nullptr) {
+
+}
+
+HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd) : MQTT(uri, username, pwd, nullptr) {
+
+}
+
+HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca) {
+    this->mqtt_msg_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(HAL::MQTT::msg_t));
+    this->mqtt_topic_queue = xQueueCreate(MQTT_QUEUE_MSG_MAX, sizeof(mqtt_topic_t));
+
+    this->mqtt_cfg.credentials.username = username;
+    this->mqtt_cfg.credentials.authentication.password = pwd;
+    this->mqtt_cfg.broker.address.uri = uri;
+    this->mqtt_cfg.broker.verification.certificate = (const char*) ca;
+    this->mqtt_cfg.task.stack_size = 8192;
+    this->mqtt_cfg.session.keepalive = 60;
+}
+
+HAL::MQTT::~MQTT() {
+    if(this->mqtt_send_task_handler)
+        vTaskDelete(this->mqtt_send_task_handler);
+    if(this->mqtt_msg_queue)
+        vQueueDelete(this->mqtt_msg_queue);
+    if(this->mqtt_topic_task_handler)
+        vTaskDelete(this->mqtt_topic_task_handler);
+    if(this->mqtt_topic_queue)
+        vQueueDelete(this->mqtt_topic_queue);
+}
+
+HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, const char *ca, int gpio_num,
+                HAL::GPIO::gpio_state_t activate_state) :
+        MQTT(uri, username, pwd, ca){
+    this->InitLed(gpio_num, activate_state);
+}
+
+HAL::MQTT::MQTT(const char *uri, int gpio_num, HAL::GPIO::gpio_state_t activate_state) :
+        MQTT(uri) {
+    this->InitLed(gpio_num, activate_state);
+}
+
+HAL::MQTT::MQTT(const char *uri, const char *username, const char *pwd, int gpio_num,
+                HAL::GPIO::gpio_state_t activate_state) {
+    this->InitLed(gpio_num, activate_state);
+}
+
+void HAL::MQTT::InitLed(int gpio_num, HAL::GPIO::gpio_state_t activate_state) {
+    this->status_led_activate = HAL::GPIO::gpio_state_t(activate_state);
+
+    HAL::GPIO::gpio_cfg_t cfg{};
+    cfg.pin = gpio_num;
+    if(this->status_led_activate == HAL::GPIO::GPIO_STATE_HIGH)
+        cfg.pull_down = 1;
+    else if(this->status_led_activate == HAL::GPIO::GPIO_STATE_LOW)
+        cfg.pull_up = 1;
+    cfg.direction = HAL::GPIO::GPIO_OUTPUT;
+    cfg.mode = HAL::GPIO::GPIO_PP;
+    this->status_led = new HAL::GPIO(cfg);
+
+
+    this->status_led->Set(HAL::GPIO::gpio_state_t(!this->status_led_activate));
 }

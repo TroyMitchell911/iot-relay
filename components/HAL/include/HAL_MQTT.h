@@ -7,6 +7,7 @@
 
 #include <mqtt_client.h>
 #include <list>
+#include "HAL_GPIO.h"
 
 namespace HAL {
     class MQTT {
@@ -50,6 +51,10 @@ namespace HAL {
             bool is_sub;
         }mqtt_topic_t;
 
+    protected:
+        HAL::GPIO::gpio_state_t status_led_activate;
+        HAL::GPIO *status_led;
+
     private:
         esp_mqtt_client_config_t mqtt_cfg{};
         esp_mqtt_client_handle_t mqtt_client = nullptr;
@@ -61,6 +66,8 @@ namespace HAL {
         EventGroupHandle_t mqtt_event_group = nullptr;
         bool started = false;
 
+
+
     private:
         static void EventHandle(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
         static void RunCallback(void *arg, HAL::MQTT::event_t event, void *data);
@@ -68,10 +75,15 @@ namespace HAL {
         [[noreturn]] static void SendTask(void *arg);
         static void SubTask(void *arg);
 
+        void InitLed(int gpio_num, GPIO::gpio_state_t  activate_state);
+
     public:
         MQTT(const char *uri);
         MQTT(const char *uri, const char *username, const char *pwd);
         MQTT(const char *uri, const char *username, const char *pwd, const char *ca);
+        MQTT(const char *uri, int gpio_num, GPIO::gpio_state_t activate_state);
+        MQTT(const char *uri, const char *username, const char *pwd, int gpio_num, GPIO::gpio_state_t activate_state);
+        MQTT(const char *uri, const char *username, const char *pwd, const char *ca, int gpio_num, GPIO::gpio_state_t activate_state);
         void Start();
         void Stop();
         void BindingCallback(HAL::MQTT::callback_t cb, uint32_t id, void *arg);
