@@ -92,6 +92,10 @@ namespace HAL {
 
         mesh_addr_t root_mac;
 
+    protected:
+        HAL::GPIO::gpio_state_t status_led_activate;
+        HAL::GPIO *status_led = nullptr;
+
     private:
         static void WiFiEventHandle(void *arg, esp_event_base_t event_base,
                                    int32_t event_id, void *event_data);
@@ -113,6 +117,7 @@ namespace HAL {
 
     public:
         static HAL::WiFiMesh &GetInstance();
+        void SetStatusLed(int gpio_num, GPIO::gpio_state_t activate_state);
         void Start(cfg_t *config);
         void SetMQTT(HAL::MQTT* mqtt_client);
         HAL::MQTT &GetMQTT();

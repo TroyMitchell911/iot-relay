@@ -425,6 +425,9 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
             } else {
                 HAL::WiFiMesh::RunCallback(&wifi_mesh->callback, EVENT_CONNECTED, nullptr);
             }
+
+            if(wifi_mesh->status_led)
+                wifi_mesh->status_led->Set(wifi_mesh->status_led_activate);
         }
             break;
         case MESH_EVENT_PARENT_DISCONNECTED: {
@@ -434,6 +437,9 @@ void HAL::WiFiMesh::MeshEventHandle(void *arg, esp_event_base_t event_base,
                      disconnected->reason);
             wifi_mesh->is_mesh_connected = false;
             wifi_mesh->mesh_layer = esp_mesh_get_layer();
+
+            if(wifi_mesh->status_led)
+                wifi_mesh->status_led->Set((GPIO::gpio_state_t )!wifi_mesh->status_led_activate);
         }
             break;
         case MESH_EVENT_LAYER_CHANGE: {
@@ -606,4 +612,23 @@ void HAL::WiFiMesh::Broadcast( void *data, size_t size, msg_type_t type, bool to
 
 void HAL::WiFiMesh::Broadcast(void *data, size_t size, msg_type_t type) {
     this->Broadcast(data, size, type, false);
+}
+
+void HAL::WiFiMesh::SetStatusLed(int gpio_num, HAL::GPIO::gpio_state_t activate_state) {
+    this->status_led_activate = HAL::GPIO::gpio_state_t(activate_state);
+
+    HAL::GPIO::gpio_cfg_t cfg{};
+    cfg.pin = gpio_num;
+    if(this->status_led_activate == HAL::GPIO::GPIO_STATE_HIGH)
+        cfg.pull_down = 1;
+    else if(this->status_led_activate == HAL::GPIO::GPIO_STATE_LOW)
+        cfg.pull_up = 1;
+    cfg.direction = HAL::GPIO::GPIO_OUTPUT;
+    cfg.mode = HAL::GPIO::GPIO_PP;
+    this->status_led = new HAL::GPIO(cfg);
+
+    if(is_mesh_connected)
+        this->status_led->Set(this->status_led_activate);
+    else
+        this->status_led->Set(HAL::GPIO::gpio_state_t(!this->status_led_activate));
 }
