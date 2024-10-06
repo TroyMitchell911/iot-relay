@@ -25,7 +25,7 @@ void App::HomeAssistant::Init() {
         ESP_LOGI(TAG, "discovery_topic: %s", this->discovery_topic);
 
         this->discovery_content = cJSON_CreateObject();
-        cJSON_AddStringToObject(this->discovery_content, "name", buffer);
+        cJSON_AddStringToObject(this->discovery_content, "name", this->entity_name);
         cJSON_AddStringToObject(this->discovery_content, "device_class", type2str[this->entity_type]);
         cJSON_AddStringToObject(this->discovery_content, "state_topic", this->status_topic);
         cJSON_AddStringToObject(this->discovery_content, "unique_id", buffer);
