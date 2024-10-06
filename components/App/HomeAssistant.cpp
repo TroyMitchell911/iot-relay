@@ -33,8 +33,6 @@ void App::HomeAssistant::Init() {
         wifi_mesh->Subscribe((char*)this->online_topic, 0);
         wifi_mesh->Subscribe((char*)this->offline_topic, 0);
     }
-
-    this->inited = true;
 }
 
 App::HomeAssistant::HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name)
@@ -109,10 +107,15 @@ void App::HomeAssistant::Process(HAL::WiFiMesh::event_t event, void *data, void 
 }
 
 void App::HomeAssistant::Discovery() {
+    if(!this->entity_discovery)
+        return;
+
     HAL::MQTT::msg_t msg{};
     strcpy(msg.topic, this->discovery_topic);
     strcpy(msg.data, cJSON_Print(this->discovery_content));
     this->wifi_mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t), HAL::WiFiMesh::MSG_MQTT);
+
+    this->inited = true;
 }
 
 
