@@ -101,13 +101,15 @@ void HAL::MQTT::EventHandle(void *handler_args, esp_event_base_t base, int32_t e
     switch (event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-            mqtt->status_led->Set(mqtt->status_led_activate);
+            if(mqtt->status_led)
+                mqtt->status_led->Set(mqtt->status_led_activate);
             xEventGroupSetBits(mqtt->mqtt_event_group, MQTT_CONNECTED_BIT);
             RunCallback((void*)&mqtt->callback, HAL::MQTT::EVENT_CONNECTED, nullptr);
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
-            mqtt->status_led->Set((GPIO::gpio_state_t )!mqtt->status_led_activate);
+            if(mqtt->status_led)
+                mqtt->status_led->Set((GPIO::gpio_state_t )!mqtt->status_led_activate);
             break;
         case MQTT_EVENT_SUBSCRIBED:
             ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);

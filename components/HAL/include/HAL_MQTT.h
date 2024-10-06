@@ -53,7 +53,7 @@ namespace HAL {
 
     protected:
         HAL::GPIO::gpio_state_t status_led_activate;
-        HAL::GPIO *status_led;
+        HAL::GPIO *status_led = nullptr;
 
     private:
         esp_mqtt_client_config_t mqtt_cfg{};
