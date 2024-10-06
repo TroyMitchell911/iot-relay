@@ -25,6 +25,11 @@ namespace App {
         const char *online_content = "online";
         const char *offline_content = "offline";
 
+        const char *device_identifiers = nullptr;
+        const char *device_name = nullptr;
+        const char *device_model = nullptr;
+        const char *device_manufacturer = nullptr;
+
     protected:
         HAL::WiFiMesh *wifi_mesh;
         entity_type_t entity_type = App::HomeAssistant::ENTITY_TYPE_MAX;
@@ -52,6 +57,14 @@ namespace App {
     public:
         virtual void Init();
 
+        HomeAssistant(HAL::WiFiMesh *mesh,
+                      const char *where,
+                      entity_type_t type,
+                      const char *name,
+                      const char *device_identifiers,
+                      const char *device_name,
+                      const char *device_model,
+                      const char *device_manufacturer);
         HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name);
         HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name, bool discovery);
         ~HomeAssistant();

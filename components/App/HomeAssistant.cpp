@@ -30,6 +30,19 @@ void App::HomeAssistant::Init() {
         cJSON_AddStringToObject(this->discovery_content, "state_topic", this->status_topic);
         cJSON_AddStringToObject(this->discovery_content, "unique_id", buffer);
 
+        /* just need to judge it */
+        if(this->device_identifiers) {
+            cJSON *identifiers_json = cJSON_CreateArray();
+            cJSON_AddItemToArray(identifiers_json, cJSON_CreateString(this->device_identifiers));
+            cJSON *device_info = cJSON_CreateObject();
+            cJSON_AddItemToObject(device_info, "identifiers", identifiers_json);
+            cJSON_AddStringToObject(device_info, "name", this->device_name);
+            cJSON_AddStringToObject(device_info, "model", this->device_model);
+            cJSON_AddStringToObject(device_info, "manufacturer", this->device_manufacturer);
+            cJSON_AddItemToObject(this->discovery_content, "device", device_info);
+            ESP_LOGI(TAG, "%s", cJSON_Print(this->discovery_content));
+        }
+
         wifi_mesh->Subscribe((char*)this->online_topic, 0);
         wifi_mesh->Subscribe((char*)this->offline_topic, 0);
     }
@@ -116,6 +129,21 @@ void App::HomeAssistant::Discovery() {
     this->wifi_mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t), HAL::WiFiMesh::MSG_MQTT);
 
     this->inited = true;
+}
+
+App::HomeAssistant::HomeAssistant(HAL::WiFiMesh *mesh,
+                                  const char *where,
+                                  App::HomeAssistant::entity_type_t type,
+                                  const char *name,
+                                  const char *device_identifiers,
+                                  const char *device_name,
+                                  const char *device_model,
+                                  const char *device_manufacturer)
+                                  :HomeAssistant(mesh, where, type, name) {
+    this->device_identifiers = device_identifiers;
+    this->device_manufacturer = device_manufacturer;
+    this->device_model = device_model;
+    this->device_name = device_name;
 }
 
 
