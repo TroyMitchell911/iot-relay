@@ -15,6 +15,7 @@ namespace App {
             LIGHT,
             SWITCH,
             BINARY_SENSOR,
+            SENSOR,
             ENTITY_TYPE_MAX
         }entity_type_t;
 
