@@ -20,6 +20,7 @@
 #include "HAL_GPIO.h"
 #include "HAL.h"
 #include "BinarySensor.h"
+#include "Sensor.h"
 
 #define TAG "[main]"
 
@@ -27,11 +28,13 @@ static HAL::MQTT *mqtt;
 static App::Switch *sw;
 static App::BinarySensor *bs;
 static HAL::GPIO::gpio_state_t key_state;
+static App::Sensor *sensor;
 
 static void mqtt_event(HAL::MQTT::event_t event, void *data, void *arg) {
     if(event == HAL::MQTT::EVENT_CONNECTED) {
         sw->Init();
         bs->Init();
+        sensor->Init();
     }
 }
 #include "ca_emqx_troy_home.crt"
@@ -43,14 +46,23 @@ static void wifi_event(HAL::WiFiMesh::event_t event_id, void *event_data, void *
         delete mqtt;
         sw->Init();
         bs->Init();
+        sensor->Init();
     }
+}
+
+static void test_func(void)
+{
+
 }
 
 extern "C" {
 __attribute__((noreturn)) void app_main(void) {
+
     ESP_LOGI(TAG, "This a iot relay device");
 
     HAL::Init();
+
+    test_func();
 
     HAL::WiFiMesh &mesh = HAL::WiFiMesh::GetInstance();
     sw = new App::Switch(&mesh, CONFIG_SWITCH_DEVICE_WHERE,
@@ -65,6 +77,14 @@ __attribute__((noreturn)) void app_main(void) {
                          CONFIG_BODY_SENSOR_GPIO_NUM,
                          CONFIG_BODY_SENSOR_ACTIVE_STATE,
                          App::BinarySensor::PRESENCE);
+
+    App::Sensor::sensor_info_t info;
+    info.device_class = App::Sensor::SENSOR_HUMIDITY;
+    info.value_name = "humi";
+    info.unit_of_measurement = nullptr;
+
+    sensor = new App::Sensor(&mesh, "room", "test3", info);
+
     mesh.BindingCallback(wifi_event, nullptr);
     HAL::WiFiMesh::cfg_t mesh_cfg{};
     mesh_cfg.max_connections = CONFIG_MESH_AP_CONNECTIONS;
