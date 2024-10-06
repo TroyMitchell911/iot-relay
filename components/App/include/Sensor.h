@@ -14,10 +14,10 @@ namespace App {
     public:
         typedef struct {
             const char *value_name;
-            int value;
+            double value;
         }update_data_t;
 
-        typedef void (*update_t)(update_data_t *data, unsigned int data_num);
+        typedef unsigned int (*update_func_t)(update_data_t **data);
 
         typedef enum {
             SENSOR_BATTERY,         // 电池电量（百分比）
@@ -36,24 +36,35 @@ namespace App {
         typedef struct {
             /* device class */
             sensor_device_class_t device_class;
-            /* Can be set to nullptr. If nullptr is used,
-             * the default unit of device_class will be used */
+            /* Can be set to nullptr */
             const char *unit_of_measurement;
             /* corresponds to value_name in update_data_t */
             const char *value_name;
         }sensor_info_t;
 
     private:
+        /* ms */
+        unsigned int update_interval;
+        update_func_t update_func;
         sensor_info_t info;
+        TaskHandle_t update_task_handler = nullptr;
+        unsigned int data_num = 0;
+        update_data_t *data = nullptr;
+        cJSON *data_json;
+
+    private:
+        static void UpdateTask(void *arg);
+        static void Update(App::Sensor *sensor);
 
     public:
         void Init() override;
         Sensor(HAL::WiFiMesh *mesh,
                const char *where,
                const char *name,
-               sensor_info_t info);
+               sensor_info_t info,
+               unsigned int interval);
         ~Sensor();
-//        void BindUpdate();
+        void BindUpdate(update_func_t func);
     };
 }
 
