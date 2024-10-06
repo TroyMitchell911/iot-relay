@@ -104,10 +104,9 @@ void App::Switch::Init() {
 
     cJSON_AddStringToObject(this->discovery_content, "command_topic", this->command_topic);
     cJSON_AddBoolToObject(this->discovery_content, "optimistic", false);
-    HAL::MQTT::msg_t msg{};
-    strcpy(msg.topic, this->discovery_topic);
-    strcpy(msg.data, cJSON_Print(this->discovery_content));
-    this->wifi_mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t), HAL::WiFiMesh::MSG_MQTT);
+
+    this->Discovery();
+
     this->wifi_mesh->Subscribe(this->command_topic);
 }
 

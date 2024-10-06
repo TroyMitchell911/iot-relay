@@ -45,10 +45,7 @@ void App::BinarySensor::Init() {
     cJSON_AddStringToObject(this->discovery_content, "payload_on", "ON");
     cJSON_AddStringToObject(this->discovery_content, "payload_off", "OFF");
 
-    HAL::MQTT::msg_t msg{};
-    strcpy(msg.topic, this->discovery_topic);
-    strcpy(msg.data, cJSON_Print(this->discovery_content));
-    this->wifi_mesh->Publish(&msg, sizeof(HAL::MQTT::msg_t), HAL::WiFiMesh::MSG_MQTT);
+    this->Discovery();
 
     /* Update the first value to avoid the ha displays `unknown` */
     this->Update();
