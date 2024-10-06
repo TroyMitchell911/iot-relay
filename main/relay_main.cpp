@@ -55,6 +55,19 @@ static void test_func(void)
 
 }
 
+static unsigned int test_update(App::Sensor::update_data_t **data)
+{
+    static App::Sensor::update_data_t update_data = {"humi", 1.0};
+
+    update_data.value += 0.1;
+
+    *data = &update_data;
+
+    ESP_LOGI(TAG, "update data: %f\n", update_data.value);
+
+    return 1;
+}
+
 extern "C" {
 __attribute__((noreturn)) void app_main(void) {
 
@@ -83,7 +96,8 @@ __attribute__((noreturn)) void app_main(void) {
     info.value_name = "humi";
     info.unit_of_measurement = nullptr;
 
-    sensor = new App::Sensor(&mesh, "room", "test3", info);
+    sensor = new App::Sensor(&mesh, "room", "test3", info, 1000);
+    sensor->BindUpdate(test_update);
 
     mesh.BindingCallback(wifi_event, nullptr);
     HAL::WiFiMesh::cfg_t mesh_cfg{};
