@@ -54,6 +54,8 @@ namespace App {
         HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name);
         HomeAssistant(HAL::WiFiMesh *mesh, const char *where, entity_type_t type, const char *name, bool discovery);
         ~HomeAssistant();
+
+        void Discovery();
     };
 }
 
