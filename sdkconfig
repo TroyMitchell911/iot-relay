@@ -493,11 +493,29 @@ CONFIG_MESH_AP_PASSWD="TROY-home!iot@mesh"
 # end of WiFi Mesh
 
 #
+# IOT Device Info
+#
+
+#
 # Deivce Unique in home
 #
-CONFIG_DEVICE_WHERE="main-room"
-CONFIG_DEVICE_NAME="ceiling-light"
+CONFIG_SWITCH_DEVICE_WHERE="bedroom"
+CONFIG_SWITCH_DEVICE_NAME="switch"
+CONFIG_BODY_SENSOR_WHERE="the-door"
+CONFIG_BODY_SENSOR_NAME="body-sensor"
 # end of Deivce Unique in home
+
+#
+# Hardware Resource
+#
+CONFIG_SWITCH_GPIO_NUM=10
+CONFIG_SWITCH_ACTIVE_STATE=0
+CONFIG_SWITCH_MANUAL_BUTTON_GPIO_NUM=7
+CONFIG_SWITCH_MANUAL_BUTTON_ACTIVE_STATE=0
+CONFIG_BODY_SENSOR_GPIO_NUM=7
+CONFIG_BODY_SENSOR_ACTIVE_STATE=0
+# end of Hardware Resource
+# end of IOT Device Info
 # end of IOT Relay Config
 
 #
